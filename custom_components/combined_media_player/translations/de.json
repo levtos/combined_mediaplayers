@@ -5,7 +5,10 @@
         "title": "Kombinierten Media Player erstellen",
         "description": "Vergib einen Namen und ordne deine Quellen nach Priorität. Slot 1 hat die höchste Priorität. Wiedergabe gewinnt vor Pause. Quellen mit on/idle liefern keine Medienanzeige. Wähle bei Bedarf pro Quelle ein Gerät für die Steuerung. Unbenutzte Felder bleiben auf „—“.",
         "data": {
-          "name": "Name"
+          "name": "Name",
+          "show_secondary": "Nebenquelle einblenden",
+          "hide_radio_station": "Sendername bei Radio ausblenden",
+          "hold_seconds": "Haltezeit (Sekunden)"
         },
         "sections": {
           "slot_1": {
@@ -96,6 +99,11 @@
               "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
             }
           }
+        },
+        "data_description": {
+          "show_secondary": "Blendet die erste weitere spielende Quelle unten rechts im Media-Player-Cover ein. Die Cover-Bild-Entität bleibt ohne Einblendung.",
+          "hide_radio_station": "Blendet den Sendernamen im Album-Feld aus, wenn die Inhalts-ID ://radio/ enthält. Andere Alben bleiben sichtbar.",
+          "hold_seconds": "Hält die bisherige Anzeige bei kurzen Wiedergabelücken für 0–30 Sekunden. Eine höher priorisierte spielende Quelle gewinnt sofort. 0 schaltet die Haltezeit aus."
         }
       }
     },
@@ -113,7 +121,10 @@
         "title": "Kombinierten Media Player bearbeiten",
         "description": "Vergib einen Namen und ordne deine Quellen nach Priorität. Slot 1 hat die höchste Priorität. Wiedergabe gewinnt vor Pause. Quellen mit on/idle liefern keine Medienanzeige. Wähle bei Bedarf pro Quelle ein Gerät für die Steuerung. Unbenutzte Felder bleiben auf „—“.",
         "data": {
-          "name": "Name"
+          "name": "Name",
+          "show_secondary": "Nebenquelle einblenden",
+          "hide_radio_station": "Sendername bei Radio ausblenden",
+          "hold_seconds": "Haltezeit (Sekunden)"
         },
         "sections": {
           "slot_1": {
@@ -204,12 +215,41 @@
               "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
             }
           }
+        },
+        "data_description": {
+          "show_secondary": "Blendet die erste weitere spielende Quelle unten rechts im Media-Player-Cover ein. Die Cover-Bild-Entität bleibt ohne Einblendung.",
+          "hide_radio_station": "Blendet den Sendernamen im Album-Feld aus, wenn die Inhalts-ID ://radio/ enthält. Andere Alben bleiben sichtbar.",
+          "hold_seconds": "Hält die bisherige Anzeige bei kurzen Wiedergabelücken für 0–30 Sekunden. Eine höher priorisierte spielende Quelle gewinnt sofort. 0 schaltet die Haltezeit aus."
         }
       }
     },
     "error": {
       "name_required": "Der Name darf nicht leer sein.",
       "sources_required": "Wähle mindestens eine Quelle."
+    }
+  },
+  "entity": {
+    "select": {
+      "override": {
+        "name": "Vorrangquelle",
+        "state": {
+          "automatic": "Automatisch"
+        }
+      }
+    },
+    "sensor": {
+      "active_source": {
+        "name": "Aktive Quelle",
+        "state": {
+          "none": "Keine"
+        }
+      }
+    }
+  },
+  "issues": {
+    "missing_entities": {
+      "title": "Konfigurierte Medienentität fehlt",
+      "description": "Diese Quellen oder Steuerziele fehlen sowohl im aktuellen Zustand als auch in der Entitätsregistrierung: {entities}. Prüfe die Slots in den Integrationseinstellungen oder stelle die fehlende Integration wieder her. Der Hinweis verschwindet automatisch, sobald die Entitäten wieder vorhanden sind. Die Prüfung beginnt erst zwei Minuten nach dem vollständigen Home-Assistant-Start."
     }
   }
 }

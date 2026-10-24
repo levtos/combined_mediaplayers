@@ -9,7 +9,19 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector
 
-from .const import CONF_NAME, CONF_SLOTS, DOMAIN, slots_from_entry
+from .const import (
+    CONF_HIDE_RADIO_STATION,
+    CONF_HOLD_SECONDS,
+    CONF_NAME,
+    CONF_SHOW_SECONDARY,
+    CONF_SLOTS,
+    DEFAULT_HIDE_RADIO_STATION,
+    DEFAULT_HOLD_SECONDS,
+    DEFAULT_SHOW_SECONDARY,
+    DOMAIN,
+    entry_option,
+    slots_from_entry,
+)
 
 _NUM_SLOTS = 8
 
@@ -32,7 +44,19 @@ def _form_slots(form: dict) -> list[dict[str, str | None]]:
     return result
 
 
-def _schema(hass, name: str = "", slots=(), prefill: dict | None = None) -> vol.Schema:
+def _settings(form: dict) -> dict:
+    return {
+        CONF_SHOW_SECONDARY: form.get(CONF_SHOW_SECONDARY, DEFAULT_SHOW_SECONDARY),
+        CONF_HIDE_RADIO_STATION: form.get(
+            CONF_HIDE_RADIO_STATION, DEFAULT_HIDE_RADIO_STATION
+        ),
+        CONF_HOLD_SECONDS: form.get(CONF_HOLD_SECONDS, DEFAULT_HOLD_SECONDS),
+    }
+
+
+def _schema(
+    hass, name: str = "", slots=(), prefill: dict | None = None, settings=None
+) -> vol.Schema:
     """Pair source and control selectors inside a native HA section."""
     entity_options = [selector.SelectOptionDict(value="", label="—")]
     entity_options.extend(
@@ -68,6 +92,28 @@ def _schema(hass, name: str = "", slots=(), prefill: dict | None = None) -> vol.
             CONF_NAME, default=(prefill or {}).get(CONF_NAME, name)
         ): selector.TextSelector(),
     }
+    settings = _settings(prefill if prefill is not None else (settings or {}))
+    fields.update(
+        {
+            vol.Optional(
+                CONF_SHOW_SECONDARY, default=settings[CONF_SHOW_SECONDARY]
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_HIDE_RADIO_STATION, default=settings[CONF_HIDE_RADIO_STATION]
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_HOLD_SECONDS, default=settings[CONF_HOLD_SECONDS]
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0,
+                    max=30,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="s",
+                )
+            ),
+        }
+    )
     for index in range(max(_NUM_SLOTS, len(slots))):
         key = f"slot_{index + 1}"
         source, control = slots[index] if index < len(slots) else ("", None)
@@ -116,7 +162,7 @@ class CombinedMediaPlayerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(
                     title=name,
                     data={CONF_NAME: name},
-                    options={CONF_SLOTS: slots},
+                    options={CONF_SLOTS: slots, **_settings(user_input)},
                 )
         return self.async_show_form(
             step_id="user",
@@ -147,7 +193,7 @@ class CombinedMediaPlayerOptionsFlow(config_entries.OptionsFlow):
                     )
                 return self.async_create_entry(
                     title="",
-                    data={CONF_NAME: name, CONF_SLOTS: slots},
+                    data={CONF_NAME: name, CONF_SLOTS: slots, **_settings(user_input)},
                 )
         name = self.config_entry.options.get(CONF_NAME) or self.config_entry.data.get(
             CONF_NAME, ""
@@ -155,7 +201,18 @@ class CombinedMediaPlayerOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=_schema(
-                self.hass, name, slots_from_entry(self.config_entry), user_input
+                self.hass,
+                name,
+                slots_from_entry(self.config_entry),
+                user_input,
+                {
+                    key: entry_option(self.config_entry, key, default)
+                    for key, default in (
+                        (CONF_SHOW_SECONDARY, DEFAULT_SHOW_SECONDARY),
+                        (CONF_HIDE_RADIO_STATION, DEFAULT_HIDE_RADIO_STATION),
+                        (CONF_HOLD_SECONDS, DEFAULT_HOLD_SECONDS),
+                    )
+                },
             ),
             errors=errors,
         )
