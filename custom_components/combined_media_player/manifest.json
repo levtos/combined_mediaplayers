@@ -1,7 +1,7 @@
 {
   "domain": "combined_media_player",
   "name": "Combined Media Player",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "documentation": "https://github.com/Levtos/combined_mediaplayers",
   "issue_tracker": "https://github.com/Levtos/combined_mediaplayers/issues",
   "codeowners": [
