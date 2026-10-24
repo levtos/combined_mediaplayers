@@ -6,203 +6,155 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector
 
-from .const import CONF_AUDIO_SOURCES, CONF_NAME, CONF_SOURCES, DOMAIN
-
-# ── Slot helpers (UI-only, not persisted) ─────────────────────────────────────
+from .const import CONF_NAME, CONF_SLOTS, DOMAIN, slots_from_entry
 
 _NUM_SLOTS = 8
-_SLOT_KEYS = [f"slot_{i}" for i in range(1, _NUM_SLOTS + 1)]
-_NONE = ""
 
 
-def _providers_to_slots(providers: list[str]) -> dict[str, str]:
-    """Ordered source list → slot form fields."""
-    return {
-        key: (providers[i] if i < len(providers) else _NONE)
-        for i, key in enumerate(_SLOT_KEYS)
-    }
-
-
-def _slots_to_providers(form_data: dict) -> list[str]:
-    """Slot form fields → ordered source list (empties and duplicates dropped)."""
+def _form_slots(form: dict) -> list[dict[str, str | None]]:
+    """Keep slot order and the first occurrence of each source."""
     seen: set[str] = set()
-    result: list[str] = []
-    for key in _SLOT_KEYS:
-        val = form_data.get(key, _NONE)
-        if val and val not in seen:
-            seen.add(val)
-            result.append(val)
+    result = []
+    keys = sorted(
+        (key for key in form if key.startswith("slot_")),
+        key=lambda key: int(key.removeprefix("slot_")),
+    )
+    for key in keys:
+        source = form[key].get("source")
+        if source and source not in seen:
+            seen.add(source)
+            result.append(
+                {"source": source, "control": form[key].get("control") or None}
+            )
     return result
 
 
-# ── Config flow ───────────────────────────────────────────────────────────────
+def _schema(hass, name: str = "", slots=(), prefill: dict | None = None) -> vol.Schema:
+    """Pair source and control selectors inside a native HA section."""
+    entity_options = [selector.SelectOptionDict(value="", label="—")]
+    entity_options.extend(
+        selector.SelectOptionDict(
+            value=state.entity_id,
+            label=state.attributes.get("friendly_name") or state.entity_id,
+        )
+        for state in sorted(
+            hass.states.async_all("media_player"),
+            key=lambda state: (
+                state.attributes.get("friendly_name") or state.entity_id
+            ).lower(),
+        )
+    )
+    known = {option["value"] for option in entity_options}
+    # Preserve saved IDs while their integration is unloaded.
+    for source, control in slots:
+        for entity_id in (source, control):
+            if entity_id and entity_id not in known:
+                entity_options.append(
+                    selector.SelectOptionDict(value=entity_id, label=entity_id)
+                )
+                known.add(entity_id)
+    entity_selector = selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=entity_options,
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+    fields = {
+        vol.Required(
+            CONF_NAME, default=(prefill or {}).get(CONF_NAME, name)
+        ): selector.TextSelector(),
+    }
+    for index in range(max(_NUM_SLOTS, len(slots))):
+        key = f"slot_{index + 1}"
+        source, control = slots[index] if index < len(slots) else ("", None)
+        values = (
+            prefill.get(key, {})
+            if prefill is not None
+            else {
+                "source": source,
+                "control": control or "",
+            }
+        )
+        fields[vol.Required(key)] = section(
+            vol.Schema(
+                {
+                    vol.Optional(
+                        "source", default=values.get("source", "")
+                    ): entity_selector,
+                    vol.Optional(
+                        "control", default=values.get("control", "")
+                    ): entity_selector,
+                }
+            ),
+            {"collapsed": index > 0},
+        )
+    return vol.Schema(fields)
 
 
 class CombinedMediaPlayerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 1
-    MINOR_VERSION = 2
+    VERSION = 2
+    MINOR_VERSION = 1
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
-        errors: dict[str, str] = {}
-
+        errors = {}
         if user_input is not None:
             name = user_input.get(CONF_NAME, "").strip()
-            sources = user_input.get(CONF_SOURCES) or []
-            audio_sources = user_input.get(CONF_AUDIO_SOURCES) or []
-
+            slots = _form_slots(user_input)
             if not name:
                 errors[CONF_NAME] = "name_required"
-            elif not sources:
-                errors[CONF_SOURCES] = "sources_required"
+            elif not slots:
+                errors["base"] = "sources_required"
             else:
                 await self.async_set_unique_id(
                     f"combined_{name.lower().replace(' ', '_')}"
                 )
                 self._abort_if_unique_id_configured()
-
                 return self.async_create_entry(
                     title=name,
-                    data={
-                        CONF_NAME: name,
-                        CONF_SOURCES: list(sources),
-                        CONF_AUDIO_SOURCES: list(audio_sources),
-                    },
+                    data={CONF_NAME: name},
+                    options={CONF_SLOTS: slots},
                 )
-
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_NAME): selector.TextSelector(
-                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                    ),
-                    vol.Required(CONF_SOURCES): selector.EntitySelector(
-                        selector.EntitySelectorConfig(
-                            domain="media_player",
-                            multiple=True,
-                        )
-                    ),
-                    vol.Optional(CONF_AUDIO_SOURCES): selector.EntitySelector(
-                        selector.EntitySelectorConfig(
-                            domain="media_player",
-                            multiple=True,
-                        )
-                    ),
-                }
-            ),
+            data_schema=_schema(self.hass, prefill=user_input),
             errors=errors,
         )
 
     @staticmethod
     @callback
-    def async_get_options_flow(
-        config_entry: config_entries.ConfigEntry,
-    ) -> "CombinedMediaPlayerOptionsFlow":
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry):
         return CombinedMediaPlayerOptionsFlow()
-
-
-# ── Options flow ──────────────────────────────────────────────────────────────
 
 
 class CombinedMediaPlayerOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
-        errors: dict[str, str] = {}
-
+        errors = {}
         if user_input is not None:
-            new_name = user_input.get(CONF_NAME, "").strip()
-            if not new_name:
+            name = user_input.get(CONF_NAME, "").strip()
+            slots = _form_slots(user_input)
+            if not name:
                 errors[CONF_NAME] = "name_required"
+            elif not slots:
+                errors["base"] = "sources_required"
             else:
-                sources = _slots_to_providers(user_input)
-                if not sources:
-                    errors["base"] = "sources_required"
-                else:
-                    audio_sources = user_input.get(CONF_AUDIO_SOURCES) or []
-                    if new_name != self.config_entry.title:
-                        self.hass.config_entries.async_update_entry(
-                            self.config_entry, title=new_name
-                        )
-                    return self.async_create_entry(
-                        title="",
-                        data={
-                            CONF_NAME: new_name,
-                            CONF_SOURCES: sources,
-                            CONF_AUDIO_SOURCES: list(audio_sources),
-                        },
+                if name != self.config_entry.title:
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry, title=name
                     )
-
+                return self.async_create_entry(
+                    title="",
+                    data={CONF_NAME: name, CONF_SLOTS: slots},
+                )
+        name = self.config_entry.options.get(CONF_NAME) or self.config_entry.data.get(
+            CONF_NAME, ""
+        )
         return self.async_show_form(
             step_id="init",
-            data_schema=self._build_schema(user_input),
+            data_schema=_schema(
+                self.hass, name, slots_from_entry(self.config_entry), user_input
+            ),
             errors=errors,
-        )
-
-    def _build_schema(self, prefill: dict | None = None) -> vol.Schema:
-        current_name = (
-            prefill.get(CONF_NAME)
-            if prefill
-            else (
-                self.config_entry.options.get(CONF_NAME)
-                or self.config_entry.data.get(CONF_NAME, "")
-            )
-        )
-        current_sources = list(
-            self.config_entry.options.get(CONF_SOURCES)
-            or self.config_entry.data.get(CONF_SOURCES, [])
-        )
-        current_audio_sources = list(
-            (prefill.get(CONF_AUDIO_SOURCES) if prefill is not None else None)
-            or self.config_entry.options.get(CONF_AUDIO_SOURCES)
-            or self.config_entry.data.get(CONF_AUDIO_SOURCES, [])
-        )
-
-        # Slot values: restore from prefill (after validation error) or from saved sources
-        if prefill is not None:
-            slots = {key: prefill.get(key, _NONE) for key in _SLOT_KEYS}
-        else:
-            slots = _providers_to_slots(current_sources)
-
-        # Build dropdown options: "—" + all media_player entities (sorted by name)
-        entity_options: list[selector.SelectOptionDict] = [
-            selector.SelectOptionDict(value=_NONE, label="—")
-        ] + [
-            selector.SelectOptionDict(
-                value=state.entity_id,
-                label=state.attributes.get("friendly_name") or state.entity_id,
-            )
-            for state in sorted(
-                self.hass.states.async_all("media_player"),
-                key=lambda s: (s.attributes.get("friendly_name") or s.entity_id).lower(),
-            )
-        ]
-
-        slot_selector = selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=entity_options,
-                mode=selector.SelectSelectorMode.DROPDOWN,
-            )
-        )
-
-        audio_source_selector = selector.EntitySelector(
-            selector.EntitySelectorConfig(
-                domain="media_player",
-                multiple=True,
-            )
-        )
-
-        return vol.Schema(
-            {
-                vol.Required(CONF_NAME, default=current_name): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                ),
-                **{
-                    vol.Optional(key, default=slots[key]): slot_selector
-                    for key in _SLOT_KEYS
-                },
-                vol.Optional(
-                    CONF_AUDIO_SOURCES, default=current_audio_sources
-                ): audio_source_selector,
-            }
         )

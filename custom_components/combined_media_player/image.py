@@ -23,8 +23,8 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.network import get_url as ha_get_url
 from homeassistant.util import dt as dt_util, slugify
 
-from .const import CONF_SOURCES, DOMAIN
-from .media_player import _TIER1, _TIER2, _TIER3, _safe_state
+from .const import DOMAIN, slots_from_entry, tracked_entities
+from .resolver import resolve
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,6 +42,7 @@ _HASS_DATA_CACHE_KEY = "cover_cache"
 # Cover art cache
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class _MemEntry:
     data: bytes
@@ -50,6 +51,7 @@ class _MemEntry:
 
 
 # Module-level executor helpers (must not be lambdas for thread-safety clarity)
+
 
 def _read_file(path: Path) -> bytes | None:
     try:
@@ -100,7 +102,7 @@ class _CoverCache:
     entity benefit from the same cached image.
 
     Cache key strategy:
-    - Stable absolute URLs (media_image_url, e.g. CDN links): stored on disk AND
+    - Absolute entity_picture URLs (e.g. CDN links): stored on disk AND
       in memory – survive HA restarts.
     - Session-scoped URLs (entity_picture with HA auth token): in-memory only –
       the token changes on restart so disk persistence would be useless.
@@ -277,18 +279,13 @@ class _CoverCache:
 
 
 def _image_cache_key(state: State, entity_id: str) -> str | None:
-    """Return the most stable cache key for the current media state.
-
-    Prefers media_image_url (absolute CDN URL, stable across HA restarts) over
-    entity_picture (contains HA auth tokens, session-scoped only).
-    """
-    url = state.attributes.get("media_image_url")
-    if url and url.startswith(("http://", "https://")):
-        return url
-    ep = state.attributes.get(ATTR_ENTITY_PICTURE)
-    if ep:
-        return f"{entity_id}:{ep}"
-    return None
+    """Persist absolute entity_picture URLs; keep relative paths in memory."""
+    picture = state.attributes.get(ATTR_ENTITY_PICTURE)
+    if not picture:
+        return None
+    if picture.startswith(("http://", "https://")):
+        return picture
+    return f"{entity_id}:{picture}"
 
 
 # ---------------------------------------------------------------------------
@@ -316,7 +313,7 @@ class CombinedCoverImage(ImageEntity):
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         super().__init__(hass)
         self._entry = entry
-        self._sources: list[str] = self._sources_from_entry(entry)
+        self._slots = slots_from_entry(entry)
         self._attr_unique_id = f"{entry.unique_id}_cover"
         self._attr_name = f"{entry.title} Cover"
         self._attr_suggested_object_id = (
@@ -327,43 +324,45 @@ class CombinedCoverImage(ImageEntity):
         )
         self._unsub: Any = None
         self._last_image: bytes | None = None
+        self._last_source: str | None = None
         self._cached_fingerprint: str | None = None
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _sources_from_entry(entry: ConfigEntry) -> list[str]:
-        return list(
-            entry.options.get(CONF_SOURCES) or entry.data.get(CONF_SOURCES, [])
-        )
-
     def _active_state(self) -> State | None:
-        for tier in (_TIER1, _TIER2, _TIER3):
-            for sid in self._sources:
-                state = self.hass.states.get(sid)
-                if state and _safe_state(state.state) and state.state in tier:
-                    return state
-        return None
+        states = {
+            entity_id: state
+            for entity_id in tracked_entities(self._slots)
+            if (state := self.hass.states.get(entity_id)) is not None
+        }
+        source = resolve(self._slots, states).display_source
+        return states.get(source) if source else None
 
     def _image_fingerprint(self) -> str | None:
-        """Return a string that changes whenever the displayed image should change."""
-        for tier in (_TIER1, _TIER2, _TIER3):
-            for sid in self._sources:
-                state = self.hass.states.get(sid)
-                if not (state and _safe_state(state.state) and state.state in tier):
-                    continue
-                url = state.attributes.get(_FINGERPRINT_ATTR)
-                if url:
-                    return f"{sid}:{url}"
-        return None
+        active = self._active_state()
+        if active is None:
+            return None
+        return json.dumps(
+            [
+                active.entity_id,
+                active.attributes.get(_FINGERPRINT_ATTR),
+                active.attributes.get("media_title"),
+            ]
+        )
 
     def _refresh_image_url(self) -> None:
-        """Bump image_last_updated only when a new image is available."""
-        fp = self._image_fingerprint()
-        if fp is not None and fp != self._cached_fingerprint:
-            self._cached_fingerprint = fp
+        """Invalidate on every winner transition, including loss of its picture."""
+        active = self._active_state()
+        source = active.entity_id if active else None
+        if source != self._last_source:
+            self._last_source = source
+            self._last_image = None
+            self._attr_content_type = None
+        fingerprint = self._image_fingerprint()
+        if fingerprint != self._cached_fingerprint:
+            self._cached_fingerprint = fingerprint
             self._attr_image_last_updated = dt_util.utcnow()
 
     def _get_cache(self) -> _CoverCache | None:
@@ -373,7 +372,7 @@ class CombinedCoverImage(ImageEntity):
     # Image fetching
     # ------------------------------------------------------------------
 
-    async def _get_entity_image(self, entity_id: str) -> bytes | None:
+    async def _get_entity_image(self, entity_id: str) -> tuple[bytes, str] | None:
         """Delegate to the source entity's async_get_media_image()."""
         mp_component = self.hass.data.get("media_player")
         if mp_component is None or not hasattr(mp_component, "get_entity"):
@@ -388,15 +387,14 @@ class CombinedCoverImage(ImageEntity):
         try:
             image_data, content_type = await entity.async_get_media_image()
             if image_data:
-                self._attr_content_type = content_type or "image/jpeg"
-                return image_data
-        except Exception as exc:
-            _LOGGER.debug("%s: async_get_media_image() failed: %s", entity_id, exc)
+                return image_data, content_type or "image/jpeg"
+        except Exception:
+            _LOGGER.debug("%s: async_get_media_image() failed", entity_id)
         return None
 
     async def _fetch_url(
         self, session: aiohttp.ClientSession, url: str
-    ) -> bytes | None:
+    ) -> tuple[bytes, str] | None:
         """Fallback: fetch image bytes from a URL, resolving HA-relative paths."""
         if url.startswith("/"):
             base = None
@@ -413,79 +411,40 @@ class CombinedCoverImage(ImageEntity):
         try:
             async with session.get(url, timeout=_FETCH_TIMEOUT) as resp:
                 if resp.status == 200:
-                    self._attr_content_type = resp.content_type or "image/jpeg"
-                    return await resp.read()
+                    return await resp.read(), resp.content_type or "image/jpeg"
         except Exception:
             pass
         return None
 
     async def async_image(self) -> bytes | None:
-        """Return cover art bytes, served from cache whenever possible.
-
-        Strategy:
-        1. Check the two-layer cache (memory → disk) using the most stable
-           key available for the active source.
-        2. On a cache miss: fetch via async_get_media_image() or URL fallback,
-           then store the result in the cache for future requests.
-        3. If no active source has an image, return the last known good image
-           so the cover stays visible during brief gaps (buffering, track changes).
-        """
+        """Fetch only the display winner; keep good art only for that source."""
+        self._refresh_image_url()
+        active = self._active_state()
+        if active is None:
+            return None
+        source = active.entity_id
+        fingerprint = self._image_fingerprint()
         cache = self._get_cache()
-        session = async_get_clientsession(self.hass)
-
-        for tier in (_TIER1, _TIER2, _TIER3):
-            for sid in self._sources:
-                state = self.hass.states.get(sid)
-                if not (state and _safe_state(state.state) and state.state in tier):
-                    continue
-
-                cache_key = _image_cache_key(state, sid)
-
-                # Cache hit – no network round-trip needed
-                if cache_key and cache is not None:
-                    cached = await cache.get(cache_key)
-                    if cached is not None:
-                        data, content_type = cached
-                        self._attr_content_type = content_type
-                        self._last_image = data
-                        _LOGGER.debug("%s: served from cache", sid)
-                        return data
-
-                # Cache miss – fetch via the source entity's implementation
-                image = await self._get_entity_image(sid)
-                if image is not None:
-                    _LOGGER.debug("%s: fetched via async_get_media_image()", sid)
-                    if cache_key and cache is not None:
-                        await cache.put(
-                            cache_key, image, self._attr_content_type or "image/jpeg"
-                        )
-                    self._last_image = image
-                    return image
-
-                # Fallback: entity_picture URL
-                url = state.attributes.get(ATTR_ENTITY_PICTURE)
-                if url:
-                    image = await self._fetch_url(session, url)
-                    if image is not None:
-                        _LOGGER.debug("%s: fetched via entity_picture URL", sid)
-                        if cache_key and cache is not None:
-                            await cache.put(
-                                cache_key,
-                                image,
-                                self._attr_content_type or "image/jpeg",
-                            )
-                        self._last_image = image
-                        return image
-
-                _LOGGER.debug(
-                    "%s: no image available, trying next source in priority chain", sid
-                )
-
-        # No current image – return last known good so cover stays visible
-        if self._last_image is not None:
-            _LOGGER.debug("Returning last known good image during transition")
-        else:
-            _LOGGER.debug("No active source could provide a cover image")
+        cache_key = _image_cache_key(active, source)
+        image = None
+        if cache_key and cache is not None:
+            image = await cache.get(cache_key)
+        if image is None:
+            image = await self._get_entity_image(source)
+            if image is None and (url := active.attributes.get(ATTR_ENTITY_PICTURE)):
+                image = await self._fetch_url(async_get_clientsession(self.hass), url)
+            if self._image_fingerprint() != fingerprint:
+                self._refresh_image_url()
+                return None
+            if image is not None and cache_key and cache is not None:
+                await cache.put(cache_key, *image)
+        # A source/title can change while cache, entity or HTTP I/O is awaited.
+        # Never publish an in-flight response for the previous winner.
+        if self._image_fingerprint() != fingerprint:
+            self._refresh_image_url()
+            return None
+        if image is not None:
+            self._last_image, self._attr_content_type = image
         return self._last_image
 
     # ------------------------------------------------------------------
@@ -494,7 +453,7 @@ class CombinedCoverImage(ImageEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        self._sources = self._sources_from_entry(self._entry)
+        self._slots = slots_from_entry(self._entry)
         self._attr_image_last_updated = dt_util.utcnow()
         self._refresh_image_url()
 
@@ -505,10 +464,11 @@ class CombinedCoverImage(ImageEntity):
             await cache.async_setup()
             domain_data[_HASS_DATA_CACHE_KEY] = cache
 
-        if self._sources:
+        all_tracked = tracked_entities(self._slots)
+        if all_tracked:
             self._unsub = async_track_state_change_event(
                 self.hass,
-                self._sources,
+                all_tracked,
                 self._handle_state_change,
             )
 

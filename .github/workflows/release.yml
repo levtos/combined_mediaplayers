@@ -1,0 +1,37 @@
+name: HACS stable release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: Levtos/control/.github/workflows/hacs-stable-release.yml@24c44343dc5f21e9029366fedaae67f0d897208f
+    with:
+      manifest_path: custom_components/combined_media_player/manifest.json
+      tag: ${{ github.ref_name }}
+  changelog:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish the matching changelog section
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import subprocess
+          version = os.environ['RELEASE_TAG'].removeprefix('v')
+          text = pathlib.Path('CHANGELOG.md').read_text(encoding='utf-8')
+          section = next(part for part in text.split('\n## ') if part.startswith(version + ' ('))
+          body = section.split('\n', 1)[1].strip() + '\n'
+          notes = pathlib.Path(os.environ['RUNNER_TEMP']) / 'release-notes.md'
+          notes.write_text(body, encoding='utf-8')
+          subprocess.run(['gh', 'release', 'edit', os.environ['RELEASE_TAG'], '--notes-file', str(notes)], check=True)
+          PY
