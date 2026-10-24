@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.7.1 (2026-10-25)
+- Show source and control choices as Friendly Name (entity_id) in setup and options so identically named media players are distinguishable.
+- Keep sorting by friendly name and use entity_id to break ties; preserve the empty choice and saved, currently unloaded entity IDs.
+- Verify control-field section labels and descriptions for all eight slots in setup and options (English/German). Translation paths are correct and remain unchanged; a frontend-cache cause for a raw field key is not confirmed by repository inspection.
+
 ## 1.7.0 (2026-10-25)
 - Use one shared, Home Assistant independent resolver for the media player and cover image: playing/buffering > paused, then slot order. on/idle sources provide controls but no media title or cover; paused remains paused.
 - Replace global audio_sources with an optional control target per priority slot in setup and options, with native HA form sections and German/English descriptions. Track changes to every source and control target.

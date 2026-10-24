@@ -38,13 +38,14 @@ def _schema(hass, name: str = "", slots=(), prefill: dict | None = None) -> vol.
     entity_options.extend(
         selector.SelectOptionDict(
             value=state.entity_id,
-            label=state.attributes.get("friendly_name") or state.entity_id,
+            label=f"{state.attributes.get('friendly_name') or state.entity_id} ({state.entity_id})",
         )
         for state in sorted(
             hass.states.async_all("media_player"),
             key=lambda state: (
-                state.attributes.get("friendly_name") or state.entity_id
-            ).lower(),
+                (state.attributes.get("friendly_name") or state.entity_id).lower(),
+                state.entity_id,
+            ),
         )
     )
     known = {option["value"] for option in entity_options}
