@@ -3,16 +3,105 @@
     "step": {
       "user": {
         "title": "Create Combined Media Player",
-        "description": "Give the combined player a name and select its sources.\n\n**Priority:** The order of selection determines priority — first selected = highest priority. You can adjust the order anytime under *Options*.",
+        "description": "Name the player and arrange sources by priority. Slot 1 has the highest priority. Playing wins over paused. Sources with on/idle provide no media display. Optionally choose a control device per source. Leave unused fields on “—”.",
         "data": {
-          "name": "Name",
-          "sources": "Sources (order = priority)"
+          "name": "Name"
+        },
+        "sections": {
+          "slot_1": {
+            "name": "Priority 1 (highest)",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          },
+          "slot_2": {
+            "name": "Priority 2",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          },
+          "slot_3": {
+            "name": "Priority 3",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          },
+          "slot_4": {
+            "name": "Priority 4",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          },
+          "slot_5": {
+            "name": "Priority 5",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          },
+          "slot_6": {
+            "name": "Priority 6",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          },
+          "slot_7": {
+            "name": "Priority 7",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          },
+          "slot_8": {
+            "name": "Priority 8",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          }
         }
       }
     },
     "error": {
       "name_required": "Name must not be empty.",
-      "sources_required": "At least one source is required."
+      "sources_required": "Select at least one source."
     },
     "abort": {
       "already_configured": "This configuration already exists."
@@ -22,15 +111,105 @@
     "step": {
       "init": {
         "title": "Edit Combined Media Player",
-        "description": "Rename the player and change its sources. Source order determines priority (first = highest).",
+        "description": "Name the player and arrange sources by priority. Slot 1 has the highest priority. Playing wins over paused. Sources with on/idle provide no media display. Optionally choose a control device per source. Leave unused fields on “—”.",
         "data": {
-          "name": "Name",
-          "sources": "Sources (order = priority)"
+          "name": "Name"
+        },
+        "sections": {
+          "slot_1": {
+            "name": "Priority 1 (highest)",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          },
+          "slot_2": {
+            "name": "Priority 2",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          },
+          "slot_3": {
+            "name": "Priority 3",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          },
+          "slot_4": {
+            "name": "Priority 4",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          },
+          "slot_5": {
+            "name": "Priority 5",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          },
+          "slot_6": {
+            "name": "Priority 6",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          },
+          "slot_7": {
+            "name": "Priority 7",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          },
+          "slot_8": {
+            "name": "Priority 8",
+            "data": {
+              "source": "Source",
+              "control": "Control via (optional)"
+            },
+            "data_description": {
+              "source": "Empty = this slot is unused.",
+              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
+            }
+          }
         }
       }
     },
     "error": {
-      "name_required": "Name must not be empty."
+      "name_required": "Name must not be empty.",
+      "sources_required": "Select at least one source."
     }
   }
 }
