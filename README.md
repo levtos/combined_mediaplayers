@@ -37,7 +37,23 @@ Within the same tier, the source with the lower position (higher priority) wins.
 | No display winner, at least one source `on` / `idle` | `idle` |
 | All sources off, missing, unavailable or unknown | `off` |
 
-The same pure resolver selects the display winner and control target for both platforms. The first configured slot has the highest priority within a tier. A lower-priority playing source always beats a higher-priority paused source. An idle placeholder never supplies its title or picture.
+The same pure resolver selects the display winner and control target. All entities share its result, including the optional hold time and priority override below. The first configured slot has the highest priority within a tier. A lower-priority playing source always beats a higher-priority paused source. An idle placeholder never supplies its title or picture.
+
+## Options added in 1.8.0
+
+These controls appear above the slots in setup and options. Existing entries use their defaults without a migration. Config-entry version 2 and the slot storage format are unchanged.
+
+| Option | German label | Default |
+| --- | --- | --- |
+| `show_secondary` | Nebenquelle einblenden | On |
+| `hide_radio_station` | Sendername bei Radio ausblenden | On |
+| `hold_seconds` | Haltezeit (Sekunden) | 5 seconds; range 0–30, 0 disables |
+
+**Hold time:** when the display source leaves playing/buffering/paused, keep that source's last active media attributes, display state, control routing and cover until the deadline. A source higher in the effective slot order that starts playing/buffering interrupts immediately; a lower playing source waits until the hold expires. If the held source recovers, the failure timer resets. An expiry callback reevaluates even without another source event. Hold state is transient and is not restored after restarting HA.
+
+**Radio albums:** with radio filtering enabled, an album name is hidden only when the winning `media_content_id` contains `://radio/`, covering Music Assistant's `radiobrowser://radio/…` and `library://radio/…` IDs. Other albums are unchanged.
+
+**Priority source:** the new select offers Automatic (German: Automatisch) and readable names with entity IDs. A chosen source moves to the front of the effective slot order; playback tiers still apply, and the stored slot order stays intact. An idle preferred source does not displace a playing source. The selected entity ID survives restarts even if its friendly name changes. Removing that source from the configuration returns to automatic selection.
 
 ## Control via / Steuerung über
 
@@ -53,22 +69,38 @@ Only the display winner supplies cover art, via its published `entity_picture`. 
 
 HA always serves the combined image through its own proxy, which delegates to the paired cover image entity. Absolute picture URLs are cache keys for the shared memory/disk cache (14-day TTL). Relative paths are cached only in memory. Source entity fetching is preferred, with an entity-picture URL fallback.
 
-The cover image entity can retain the last good image during a brief gap for the **same display source**. A source switch, loss of the display winner, or an on/idle state clears that fallback. A lower-priority source's image is never substituted for the winner. In-flight responses from an earlier source/title are discarded.
+The cover image entity can retain the last good image during a brief gap for the **same display source**. During the optional hold time it uses the last active source snapshot. A source switch or loss of the display winner after the hold expires clears that fallback. A lower-priority source's image is never substituted for the winner. In-flight responses from an earlier source/title are discarded.
+
+### Picture in picture
+
+When enabled, only `media_player` image requests add the first entry of `other_active_sources` as a secondary cover. The main canvas keeps its original dimensions. The secondary image is center-cropped to a square (34% of the shorter main side), placed bottom-right with a 4% margin, rounded corners, a thin translucent light border and a soft shadow. There is at most one inset; if it cannot be fetched, the main cover is served alone.
+
+**The inset is visible only when the client follows the media player's image, for example `media_player.media`.** A card or client following the dedicated `image` entity sees only the main cover. Both images use the same cache/entity/HA-relative-URL fetch helper. Composition runs in the executor with Pillow, already supplied by HA Core. Failure or a missing Pillow installation serves the main cover and logs once per player instance, without exception details. A four-entry LRU cache retains composed images in memory. The media image hash includes both source identities, pictures and titles.
 
 ## Entities
 
-Each integration entry creates two entities under a shared device:
+Each integration entry creates four entities under a shared device:
 
 | Entity | Description |
 |--------|-------------|
 | `media_player.<name>` | Combined media player with full controls |
 | `image.<name>_cover` | Cover art image of the currently active source |
+| `select.<entry_unique_id>_override` | Priority source, restored after restart |
+| `sensor.<entry_unique_id>_active_source` | Winning entity ID or `none` |
+
+The two new entity IDs above are suggestions derived from the entry unique ID (HA may resolve naming conflicts). Their unique IDs are exactly `<entry.unique_id>_override` and `<entry.unique_id>_active_source`. Their displayed names are the configured player name followed by “Priority source” / “Active source”, or “Vorrangquelle” / “Aktive Quelle” in German. Existing player and cover IDs and unique IDs are unchanged.
 
 The `image` entity is useful in dashboards (Picture card) and automations where a proper `image` entity is required instead of `entity_picture`.
 
 Both entities expose an `active_source` attribute with the `entity_id` of the currently winning source.
 
-The cover entity also retains `active_source_name`. The player exposes `control_target`, ordered `slots` (`source`, optional `control`) and `other_active_sources` (additional playing/buffering sources in slot order). The latter is diagnostic only; no collage is generated.
+The cover entity also retains `active_source_name`. The player exposes `control_target`, ordered `slots` (`source`, optional `control`), `other_active_sources` (additional playing/buffering sources in effective slot order), `override` and `hold_active`. The source sensor exposes `active_source_name`, `control_target`, `other_active_sources`, `override` (selected entity ID or null for automatic), and `hold_active`. The source's friendly name is deliberately called `active_source_name`; HA reserves `friendly_name` for the sensor's own translated name.
+
+## Repairs and diagnostics
+
+Two minutes after HA has fully started, the integration checks configured sources and control targets. A Repair notice lists only IDs that have neither a state nor an entity registry entry. Unavailable entities or entities still registered do not trigger it. State/registry updates remove the notice automatically once all configured IDs exist again. Reloading options removes obsolete notices and starts a new delayed check.
+
+The integration's diagnostics download includes effective options, the current resolved selection and per-slot state, media content type and picture-presence indicators. Picture URL values are always `**REDACTED**`; names, unknown options and non-enum values are also redacted. Tokens, media titles and content URLs are not exported. No Home Assistant configuration is changed by downloading diagnostics.
 
 ## Installation
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.8.0 (2026-10-25)
+- Add optional picture-in-picture to the media player's cover only: one other playing source, center-cropped square, rounded corners, light border and shadow. The dedicated image entity keeps the pure main cover.
+- Share source-image fetching and the existing two-layer cache; compose with HA Core's Pillow in the executor, cache four composites in memory, and fall back to the main cover with a one-time warning on composition failure. Image hashes include secondary source, picture and title.
+- Optionally hide radio station album names when the winning media_content_id contains ://radio/.
+- Hold the previous display source, media attributes, controls and cover across brief playback gaps. A pure hold resolver and an expiry timer enforce the deadline; higher-priority playing sources interrupt immediately.
+- Add a restored priority-source select and an active-source sensor with control, secondary-source, override and hold diagnostics. Source display names use active_source_name so the sensor keeps its own name.
+- Add delayed, self-clearing Repairs for entities absent from both states and the registry, and allowlisted diagnostics that redact picture URLs, tokens and unknown option values.
+- Add setup/options controls with defaults: secondary cover on, hide radio station on, hold time 5 seconds (0–30). Existing entries use defaults; slot storage, v1→v2 migration and existing entity identities stay unchanged.
+- Add German/English option, entity and Repair text plus focused pure feature/image tests. The v1.7.1 dropdown correction is retained.
+
 ## 1.7.1 (2026-10-25)
 - Show source and control choices as Friendly Name (entity_id) in setup and options so identically named media players are distinguishable.
 - Keep sorting by friendly name and use entity_id to break ties; preserve the empty choice and saved, currently unloaded entity IDs.

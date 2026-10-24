@@ -5,7 +5,10 @@
         "title": "Create Combined Media Player",
         "description": "Name the player and arrange sources by priority. Slot 1 has the highest priority. Playing wins over paused. Sources with on/idle provide no media display. Optionally choose a control device per source. Leave unused fields on “—”.",
         "data": {
-          "name": "Name"
+          "name": "Name",
+          "show_secondary": "Show secondary source",
+          "hide_radio_station": "Hide station name for radio",
+          "hold_seconds": "Hold time (seconds)"
         },
         "sections": {
           "slot_1": {
@@ -96,6 +99,11 @@
               "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
             }
           }
+        },
+        "data_description": {
+          "show_secondary": "Show the first other playing source in the bottom-right of the media player's cover. The cover image entity remains unchanged.",
+          "hide_radio_station": "Hide the station name in the album field when the content ID contains ://radio/. Other albums remain visible.",
+          "hold_seconds": "Keep the previous display during brief playback gaps for 0–30 seconds. A higher-priority playing source wins immediately. Set 0 to disable."
         }
       }
     },
@@ -113,7 +121,10 @@
         "title": "Edit Combined Media Player",
         "description": "Name the player and arrange sources by priority. Slot 1 has the highest priority. Playing wins over paused. Sources with on/idle provide no media display. Optionally choose a control device per source. Leave unused fields on “—”.",
         "data": {
-          "name": "Name"
+          "name": "Name",
+          "show_secondary": "Show secondary source",
+          "hide_radio_station": "Hide station name for radio",
+          "hold_seconds": "Hold time (seconds)"
         },
         "sections": {
           "slot_1": {
@@ -204,12 +215,41 @@
               "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
             }
           }
+        },
+        "data_description": {
+          "show_secondary": "Show the first other playing source in the bottom-right of the media player's cover. The cover image entity remains unchanged.",
+          "hide_radio_station": "Hide the station name in the album field when the content ID contains ://radio/. Other albums remain visible.",
+          "hold_seconds": "Keep the previous display during brief playback gaps for 0–30 seconds. A higher-priority playing source wins immediately. Set 0 to disable."
         }
       }
     },
     "error": {
       "name_required": "Name must not be empty.",
       "sources_required": "Select at least one source."
+    }
+  },
+  "entity": {
+    "select": {
+      "override": {
+        "name": "Priority source",
+        "state": {
+          "automatic": "Automatic"
+        }
+      }
+    },
+    "sensor": {
+      "active_source": {
+        "name": "Active source",
+        "state": {
+          "none": "None"
+        }
+      }
+    }
+  },
+  "issues": {
+    "missing_entities": {
+      "title": "Configured media entity is missing",
+      "description": "These sources or control targets have neither a current state nor an entity registry entry: {entities}. Check the slots in integration options or restore the missing integration. The notice clears automatically when the entities exist again. Checking starts two minutes after Home Assistant has fully started."
     }
   }
 }

@@ -13,6 +13,7 @@ from .const import (
     PLATFORMS,
     slots_from_entry,
 )
+from .runtime import EntryRuntime
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,14 +52,24 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = entry
+    runtime = EntryRuntime(hass, entry)
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = runtime
+    runtime.start()
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    try:
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    except Exception:
+        runtime.stop()
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+        raise
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded:
+        hass.data[DOMAIN].pop(entry.entry_id).stop()
+    return unloaded
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:

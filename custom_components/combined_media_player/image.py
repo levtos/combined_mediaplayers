@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Callable
 import hashlib
 import json
 import logging
@@ -17,14 +19,12 @@ from homeassistant.core import HomeAssistant, State, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import (
-    async_track_state_change_event,
     async_track_time_interval,
 )
 from homeassistant.helpers.network import get_url as ha_get_url
 from homeassistant.util import dt as dt_util, slugify
 
-from .const import DOMAIN, slots_from_entry, tracked_entities
-from .resolver import resolve
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -288,6 +288,82 @@ def _image_cache_key(state: State, entity_id: str) -> str | None:
     return f"{entity_id}:{picture}"
 
 
+async def async_get_cover_cache(hass: HomeAssistant) -> _CoverCache:
+    """Initialize the shared two-layer cache once, including concurrent loads."""
+    data = hass.data.setdefault(DOMAIN, {})
+    lock = data.setdefault("cover_cache_lock", asyncio.Lock())
+    async with lock:
+        if _HASS_DATA_CACHE_KEY not in data:
+            cache = _CoverCache(hass)
+            await cache.async_setup()
+            data[_HASS_DATA_CACHE_KEY] = cache
+        return data[_HASS_DATA_CACHE_KEY]
+
+
+async def _async_entity_image(
+    hass: HomeAssistant, source: str
+) -> tuple[bytes, str] | None:
+    component = hass.data.get("media_player")
+    entity = (
+        component.get_entity(source)
+        if component is not None and hasattr(component, "get_entity")
+        else None
+    )
+    if entity is not None and hasattr(entity, "async_get_media_image"):
+        try:
+            data, content_type = await entity.async_get_media_image()
+            if data:
+                return data, content_type or "image/jpeg"
+        except Exception:
+            # Never log an exception string: provider errors may contain token URLs.
+            _LOGGER.debug("Source entity image fetch failed")
+    return None
+
+
+async def _async_fetch_url(hass: HomeAssistant, url: str) -> tuple[bytes, str] | None:
+    if url.startswith("/"):
+        base = None
+        for kw in (
+            {"allow_ip": True, "prefer_external": False},
+            {"allow_ip": True, "prefer_external": True},
+        ):
+            try:
+                base = ha_get_url(hass, **kw)
+                break
+            except Exception:
+                pass
+        url = f"{base or 'http://127.0.0.1:8123'}{url}"
+    try:
+        async with async_get_clientsession(hass).get(
+            url, timeout=_FETCH_TIMEOUT
+        ) as response:
+            if response.status == 200:
+                return await response.read(), response.content_type or "image/jpeg"
+    except Exception:
+        pass
+    return None
+
+
+async def async_fetch_source_image(
+    hass: HomeAssistant,
+    state: State,
+    is_current: Callable[[], bool],
+) -> tuple[bytes, str] | None:
+    """Shared cache/entity/URL fetch for main and secondary images."""
+    cache = await async_get_cover_cache(hass)
+    key = _image_cache_key(state, state.entity_id)
+    image = await cache.get(key) if key else None
+    if image is None:
+        image = await _async_entity_image(hass, state.entity_id)
+        if image is None and (url := state.attributes.get(ATTR_ENTITY_PICTURE)):
+            image = await _async_fetch_url(hass, url)
+        if not is_current():
+            return None
+        if image is not None and key:
+            await cache.put(key, *image)
+    return image if is_current() else None
+
+
 # ---------------------------------------------------------------------------
 # Setup
 # ---------------------------------------------------------------------------
@@ -313,7 +389,6 @@ class CombinedCoverImage(ImageEntity):
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         super().__init__(hass)
         self._entry = entry
-        self._slots = slots_from_entry(entry)
         self._attr_unique_id = f"{entry.unique_id}_cover"
         self._attr_name = f"{entry.title} Cover"
         self._attr_suggested_object_id = (
@@ -332,13 +407,7 @@ class CombinedCoverImage(ImageEntity):
     # ------------------------------------------------------------------
 
     def _active_state(self) -> State | None:
-        states = {
-            entity_id: state
-            for entity_id in tracked_entities(self._slots)
-            if (state := self.hass.states.get(entity_id)) is not None
-        }
-        source = resolve(self._slots, states).display_source
-        return states.get(source) if source else None
+        return self.hass.data[DOMAIN][self._entry.entry_id].display_state
 
     def _image_fingerprint(self) -> str | None:
         active = self._active_state()
@@ -365,79 +434,18 @@ class CombinedCoverImage(ImageEntity):
             self._cached_fingerprint = fingerprint
             self._attr_image_last_updated = dt_util.utcnow()
 
-    def _get_cache(self) -> _CoverCache | None:
-        return self.hass.data.get(DOMAIN, {}).get(_HASS_DATA_CACHE_KEY)
-
-    # ------------------------------------------------------------------
-    # Image fetching
-    # ------------------------------------------------------------------
-
-    async def _get_entity_image(self, entity_id: str) -> tuple[bytes, str] | None:
-        """Delegate to the source entity's async_get_media_image()."""
-        mp_component = self.hass.data.get("media_player")
-        if mp_component is None or not hasattr(mp_component, "get_entity"):
-            _LOGGER.debug(
-                "%s: media_player component not available, falling back to URL fetch",
-                entity_id,
-            )
-            return None
-        entity = mp_component.get_entity(entity_id)
-        if entity is None or not hasattr(entity, "async_get_media_image"):
-            return None
-        try:
-            image_data, content_type = await entity.async_get_media_image()
-            if image_data:
-                return image_data, content_type or "image/jpeg"
-        except Exception:
-            _LOGGER.debug("%s: async_get_media_image() failed", entity_id)
-        return None
-
-    async def _fetch_url(
-        self, session: aiohttp.ClientSession, url: str
-    ) -> tuple[bytes, str] | None:
-        """Fallback: fetch image bytes from a URL, resolving HA-relative paths."""
-        if url.startswith("/"):
-            base = None
-            for kw in (
-                {"allow_ip": True, "prefer_external": False},
-                {"allow_ip": True, "prefer_external": True},
-            ):
-                try:
-                    base = ha_get_url(self.hass, **kw)
-                    break
-                except Exception:
-                    pass
-            url = f"{base or 'http://127.0.0.1:8123'}{url}"
-        try:
-            async with session.get(url, timeout=_FETCH_TIMEOUT) as resp:
-                if resp.status == 200:
-                    return await resp.read(), resp.content_type or "image/jpeg"
-        except Exception:
-            pass
-        return None
-
     async def async_image(self) -> bytes | None:
         """Fetch only the display winner; keep good art only for that source."""
         self._refresh_image_url()
         active = self._active_state()
         if active is None:
             return None
-        source = active.entity_id
         fingerprint = self._image_fingerprint()
-        cache = self._get_cache()
-        cache_key = _image_cache_key(active, source)
-        image = None
-        if cache_key and cache is not None:
-            image = await cache.get(cache_key)
-        if image is None:
-            image = await self._get_entity_image(source)
-            if image is None and (url := active.attributes.get(ATTR_ENTITY_PICTURE)):
-                image = await self._fetch_url(async_get_clientsession(self.hass), url)
-            if self._image_fingerprint() != fingerprint:
-                self._refresh_image_url()
-                return None
-            if image is not None and cache_key and cache is not None:
-                await cache.put(cache_key, *image)
+        image = await async_fetch_source_image(
+            self.hass,
+            active,
+            lambda: self._image_fingerprint() == fingerprint,
+        )
         # A source/title can change while cache, entity or HTTP I/O is awaited.
         # Never publish an in-flight response for the previous winner.
         if self._image_fingerprint() != fingerprint:
@@ -453,24 +461,13 @@ class CombinedCoverImage(ImageEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        self._slots = slots_from_entry(self._entry)
         self._attr_image_last_updated = dt_util.utcnow()
         self._refresh_image_url()
 
-        # Initialize shared cache on first entity load; subsequent entities reuse it
-        domain_data = self.hass.data.setdefault(DOMAIN, {})
-        if _HASS_DATA_CACHE_KEY not in domain_data:
-            cache = _CoverCache(self.hass)
-            await cache.async_setup()
-            domain_data[_HASS_DATA_CACHE_KEY] = cache
-
-        all_tracked = tracked_entities(self._slots)
-        if all_tracked:
-            self._unsub = async_track_state_change_event(
-                self.hass,
-                all_tracked,
-                self._handle_state_change,
-            )
+        await async_get_cover_cache(self.hass)
+        self._unsub = self.hass.data[DOMAIN][self._entry.entry_id].subscribe(
+            self._handle_state_change
+        )
 
     async def async_will_remove_from_hass(self) -> None:
         if self._unsub is not None:
@@ -479,7 +476,7 @@ class CombinedCoverImage(ImageEntity):
         await super().async_will_remove_from_hass()
 
     @callback
-    def _handle_state_change(self, _event) -> None:
+    def _handle_state_change(self) -> None:
         self._refresh_image_url()
         self.async_write_ha_state()
 

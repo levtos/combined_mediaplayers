@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 import hashlib
+import logging
 import json
 from typing import Any
 
@@ -15,10 +17,23 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, State, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
-from homeassistant.helpers.event import async_track_state_change_event
 
-from .const import CONF_NAME, DOMAIN, slots_from_entry, tracked_entities
-from .resolver import Resolution, resolve
+from .const import (
+    CONF_HIDE_RADIO_STATION,
+    CONF_NAME,
+    CONF_SHOW_SECONDARY,
+    DEFAULT_HIDE_RADIO_STATION,
+    DEFAULT_SHOW_SECONDARY,
+    DOMAIN,
+    entry_option,
+    slots_from_entry,
+    tracked_entities,
+)
+from .compositor import compose_picture
+from .image import async_fetch_source_image
+from .resolver import Resolution, is_radio
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -51,6 +66,14 @@ class CombinedMediaPlayer(MediaPlayerEntity):
             CONF_NAME, "Combined Media Player"
         )
         self._unsub: Any = None
+        self._composites: OrderedDict[str, bytes] = OrderedDict()
+        self._composition_warned = False
+        self._show_secondary = entry_option(
+            entry, CONF_SHOW_SECONDARY, DEFAULT_SHOW_SECONDARY
+        )
+        self._hide_radio = entry_option(
+            entry, CONF_HIDE_RADIO_STATION, DEFAULT_HIDE_RADIO_STATION
+        )
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -65,14 +88,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        self._slots = slots_from_entry(self._entry)
-        all_tracked = tracked_entities(self._slots)
-        if all_tracked:
-            self._unsub = async_track_state_change_event(
-                self.hass,
-                all_tracked,
-                self._handle_state_change,
-            )
+        self._unsub = self._runtime.subscribe(self._handle_state_change)
 
     async def async_will_remove_from_hass(self) -> None:
         if self._unsub is not None:
@@ -81,28 +97,28 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         await super().async_will_remove_from_hass()
 
     @callback
-    def _handle_state_change(self, event) -> None:
+    def _handle_state_change(self) -> None:
         self.async_write_ha_state()
 
     # ── Active source resolution ───────────────────────────────────────────────
 
+    @property
+    def _runtime(self):
+        return self.hass.data[DOMAIN][self._entry.entry_id]
+
     def _resolve(self) -> Resolution:
-        states = {
-            entity_id: state
-            for entity_id in tracked_entities(self._slots)
-            if (state := self.hass.states.get(entity_id)) is not None
-        }
-        return resolve(self._slots, states)
+        return self._runtime.selection
 
     def _active_state(self) -> State | None:
-        source = self._resolve().display_source
-        return self.hass.states.get(source) if source else None
+        return self._runtime.display_state
 
     def _active_entity_id(self) -> str | None:
         return self._resolve().display_source
 
     def _control_state(self) -> State | None:
         target = self._resolve().control_target
+        if self._runtime.hold_active and target == self._resolve().display_source:
+            return self._active_state()
         return self.hass.states.get(target) if target else None
 
     # ── Availability & state ───────────────────────────────────────────────────
@@ -165,6 +181,8 @@ class CombinedMediaPlayer(MediaPlayerEntity):
 
     @property
     def media_album_name(self) -> str | None:
+        if self._hide_radio and is_radio(self._from_active("media_content_id")):
+            return None
         return self._from_active("media_album_name")
 
     @property
@@ -255,14 +273,31 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         active = self._active_state()
         if active is None or not active.attributes.get("entity_picture"):
             return None
+        secondary = self._secondary_state()
         fingerprint = json.dumps(
             [
                 active.entity_id,
                 active.attributes["entity_picture"],
                 active.attributes.get("media_title"),
+                self._show_secondary,
+                [
+                    secondary.entity_id,
+                    secondary.attributes.get("entity_picture"),
+                    secondary.attributes.get("media_title"),
+                ]
+                if secondary
+                else None,
             ]
         )
         return hashlib.sha256(fingerprint.encode()).hexdigest()[:32]
+
+    def _secondary_state(self) -> State | None:
+        sources = self._resolve().other_active_sources
+        return (
+            self.hass.states.get(sources[0])
+            if self._show_secondary and sources
+            else None
+        )
 
     @property
     def media_image_url(self) -> str | None:
@@ -275,30 +310,66 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         )
 
     async def async_get_media_image(self) -> tuple[bytes | None, str | None]:
-        """Fetch cover art from the paired CombinedCoverImage entity.
-
-        image.py handles caching, entity_picture fallback, and last-known-good
-        persistence.  Delegating here avoids duplicating that logic and ensures
-        the media-player card and the image entity always show the same art.
-        """
-        er = async_get_entity_registry(self.hass)
-        image_entity_id = er.async_get_entity_id(
+        """Keep the image entity pure; compose an optional inset only here."""
+        fingerprint = self.media_image_hash
+        registry = async_get_entity_registry(self.hass)
+        image_id = registry.async_get_entity_id(
             "image", DOMAIN, f"{self._entry.unique_id}_cover"
         )
-        if image_entity_id:
-            image_component = self.hass.data.get("image")
-            if image_component is not None and hasattr(image_component, "get_entity"):
-                entity = image_component.get_entity(image_entity_id)
-                if entity is not None:
-                    try:
-                        data = await entity.async_image()
-                        if data:
-                            return data, getattr(
-                                entity, "content_type", None
-                            ) or "image/jpeg"
-                    except Exception:
-                        pass
-        return None, None
+        component = self.hass.data.get("image")
+        entity = (
+            component.get_entity(image_id)
+            if image_id and component is not None and hasattr(component, "get_entity")
+            else None
+        )
+        if entity is None:
+            return None, None
+        try:
+            main = await entity.async_image()
+        except Exception:
+            return None, None
+        if self.media_image_hash != fingerprint:
+            return None, None
+        if not main:
+            return None, None
+        content_type = getattr(entity, "content_type", None) or "image/jpeg"
+        secondary = self._secondary_state()
+        if secondary is None or fingerprint is None:
+            return main, content_type
+        if fingerprint in self._composites:
+            self._composites.move_to_end(fingerprint)
+            return self._composites[fingerprint], "image/png"
+        inset = await async_fetch_source_image(
+            self.hass,
+            secondary,
+            lambda: self.media_image_hash == fingerprint,
+        )
+        if self.media_image_hash != fingerprint:
+            return None, None
+        if inset is None:
+            return main, content_type
+        try:
+            composed = await self.hass.async_add_executor_job(
+                compose_picture, main, inset[0]
+            )
+        except Exception:
+            if not self._composition_warned:
+                _LOGGER.warning(
+                    "Picture-in-picture unavailable; serving the main cover"
+                )
+                self._composition_warned = True
+            return (
+                (main, content_type)
+                if self.media_image_hash == fingerprint
+                else (None, None)
+            )
+        if self.media_image_hash != fingerprint:
+            return None, None
+        self._composites[fingerprint] = composed
+        self._composites.move_to_end(fingerprint)
+        while len(self._composites) > 4:
+            self._composites.popitem(last=False)
+        return composed, "image/png"
 
     def _browse_entity_id(self) -> str | None:
         """Return the entity_id of the best source to delegate media browsing to.
@@ -367,6 +438,8 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         return {
             "active_source": selection.display_source,
             "control_target": selection.control_target,
+            "override": self._runtime.override,
+            "hold_active": self._runtime.hold_active,
             "other_active_sources": list(selection.other_active_sources),
             "slots": [
                 {"source": source, "control": control}
