@@ -30,7 +30,7 @@ from .const import (
     tracked_entities,
 )
 from .compositor import compose_picture
-from .image import async_fetch_source_image
+from .image import async_fetch_source_image, record_composition_status
 from .resolver import Resolution, is_radio
 
 _LOGGER = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         )
         self._unsub: Any = None
         self._composites: OrderedDict[str, bytes] = OrderedDict()
-        self._composition_warned = False
+        self._composition_warnings: set[tuple[str | None, str, str]] = set()
         self._show_secondary = entry_option(
             entry, CONF_SHOW_SECONDARY, DEFAULT_SHOW_SECONDARY
         )
@@ -336,8 +336,21 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         secondary = self._secondary_state()
         if secondary is None or fingerprint is None:
             return main, content_type
+        primary = self._resolve().display_source
+
+        def record(reason=None):
+            record_composition_status(
+                self.hass,
+                self._entry.entry_id,
+                primary,
+                secondary.entity_id,
+                fingerprint,
+                reason,
+            )
+
         if fingerprint in self._composites:
             self._composites.move_to_end(fingerprint)
+            record()
             return self._composites[fingerprint], "image/png"
         inset = await async_fetch_source_image(
             self.hass,
@@ -347,17 +360,24 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         if self.media_image_hash != fingerprint:
             return None, None
         if inset is None:
+            record("secondary_image_unavailable")
             return main, content_type
         try:
             composed = await self.hass.async_add_executor_job(
                 compose_picture, main, inset[0]
             )
-        except Exception:
-            if not self._composition_warned:
+        except Exception as error:
+            reason = type(error).__name__
+            record(reason)
+            warning_key = (primary, secondary.entity_id, fingerprint)
+            if warning_key not in self._composition_warnings:
                 _LOGGER.warning(
-                    "Picture-in-picture unavailable; serving the main cover"
+                    "Picture-in-picture unavailable for %s / %s (%s); serving the main cover",
+                    primary,
+                    secondary.entity_id,
+                    reason,
                 )
-                self._composition_warned = True
+                self._composition_warnings.add(warning_key)
             return (
                 (main, content_type)
                 if self.media_image_hash == fingerprint
@@ -369,6 +389,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         self._composites.move_to_end(fingerprint)
         while len(self._composites) > 4:
             self._composites.popitem(last=False)
+        record()
         return composed, "image/png"
 
     def _browse_entity_id(self) -> str | None:

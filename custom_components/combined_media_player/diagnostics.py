@@ -31,6 +31,29 @@ def _entity(value):
 async def async_get_config_entry_diagnostics(hass, entry) -> dict:
     runtime = hass.data[DOMAIN][entry.entry_id]
     selection = runtime.selection
+    fetch_status = hass.data[DOMAIN].get("image_fetch_status", {})
+
+    def last_fetch(source):
+        status = fetch_status.get(source)
+        return (
+            {key: status.get(key) for key in ("status", "reason", "route", "at")}
+            if status
+            else None
+        )
+
+    composition = hass.data[DOMAIN].get("composition_status", {}).get(entry.entry_id)
+    last_composition = None
+    if composition:
+        last_composition = {
+            key: composition.get(key)
+            for key in ("status", "reason", "at", "fingerprint")
+        }
+        last_composition.update(
+            {
+                "primary": _entity(composition.get("primary")),
+                "secondary": _entity(composition.get("secondary")),
+            }
+        )
 
     def state_info(entity_id):
         state = hass.states.get(entity_id) if entity_id else None
@@ -98,6 +121,7 @@ async def async_get_config_entry_diagnostics(hass, entry) -> dict:
     )
     return {
         "options": options,
+        "last_composition": last_composition,
         "resolution": {
             "display_source": _entity(selection.display_source),
             "control_target": _entity(selection.control_target),
@@ -114,6 +138,8 @@ async def async_get_config_entry_diagnostics(hass, entry) -> dict:
                 "control": _entity(control),
                 "source_state": state_info(source),
                 "control_state": state_info(control),
+                "last_fetch": last_fetch(source),
+                "control_last_fetch": last_fetch(control),
             }
             for source, control in runtime.slots
         ],

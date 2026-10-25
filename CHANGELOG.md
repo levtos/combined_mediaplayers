@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.1 (2026-10-25)
+- Require image/* MIME and Pillow open/verify checks in the executor for source, URL and cache results; reject HTML/error pages and continue from source-image fetching to entity_picture fallback. Never cache invalid bytes.
+- Validate existing disk-cache entries once on initialization and remove invalid image files; guard both cache reads and writes against malformed data.
+- Report composition failures once per main/secondary source and image fingerprint, including only the exception class. Add safe per-route DEBUG reasons without URLs or exception messages.
+- Include the latest per-slot fetch result/reason/time and the latest composition status in redacted diagnostics. Resolver, slots, hold time, override, picture geometry and entity IDs are unchanged.
+
 ## 1.8.0 (2026-10-25)
 - Add optional picture-in-picture to the media player's cover only: one other playing source, center-cropped square, rounded corners, light border and shadow. The dedicated image entity keeps the pure main cover.
 - Share source-image fetching and the existing two-layer cache; compose with HA Core's Pillow in the executor, cache four composites in memory, and fall back to the main cover with a one-time warning on composition failure. Image hashes include secondary source, picture and title.
