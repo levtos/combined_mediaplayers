@@ -124,6 +124,7 @@ async def async_get_config_entry_diagnostics(hass, entry) -> dict:
         "last_composition": last_composition,
         "resolution": {
             "display_source": _entity(selection.display_source),
+            "secondary_source": _entity(selection.secondary_source),
             "control_target": _entity(selection.control_target),
             "other_active_sources": [
                 _entity(source) for source in selection.other_active_sources

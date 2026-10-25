@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.0 (2026-10-25)
+- Replace fixed priority-slot fields with a two-step setup/options flow: a reorderable multi-entity source selector, followed by optional per-source control devices. Remove the eight-source form limit and keep controls attached to source IDs when reordering; duplicate sources keep their first occurrence.
+- Preserve the existing slots storage format, config-entry version and entity identities; no migration is required. Update German/English instructions and README.
+- Add pure resolver secondary_source selection: skip titles matching the main source after strip/casefold; a missing/blank title is not a duplicate. Preserve the full other_active_sources list.
+- Use secondary_source exclusively for the media-player inset and image hash, and expose it in player/sensor attributes and diagnostics. During hold time compare against the retained main title without changing hold or main-selection rules.
+- Retain 1.8.1 image validation and diagnostics unchanged; add focused source-order/control-mapping and duplicate-title tests.
+
 ## 1.8.1 (2026-10-25)
 - Require image/* MIME and Pillow open/verify checks in the executor for source, URL and cache results; reject HTML/error pages and continue from source-image fetching to entity_picture fallback. Never cache invalid bytes.
 - Validate existing disk-cache entries once on initialization and remove invalid image files; guard both cache reads and writes against malformed data.

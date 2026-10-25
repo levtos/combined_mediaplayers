@@ -6,7 +6,6 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector
 
 from .const import (
@@ -15,6 +14,7 @@ from .const import (
     CONF_NAME,
     CONF_SHOW_SECONDARY,
     CONF_SLOTS,
+    CONF_SOURCES,
     DEFAULT_HIDE_RADIO_STATION,
     DEFAULT_HOLD_SECONDS,
     DEFAULT_SHOW_SECONDARY,
@@ -22,26 +22,7 @@ from .const import (
     entry_option,
     slots_from_entry,
 )
-
-_NUM_SLOTS = 8
-
-
-def _form_slots(form: dict) -> list[dict[str, str | None]]:
-    """Keep slot order and the first occurrence of each source."""
-    seen: set[str] = set()
-    result = []
-    keys = sorted(
-        (key for key in form if key.startswith("slot_")),
-        key=lambda key: int(key.removeprefix("slot_")),
-    )
-    for key in keys:
-        source = form[key].get("source")
-        if source and source not in seen:
-            seen.add(source)
-            result.append(
-                {"source": source, "control": form[key].get("control") or None}
-            )
-    return result
+from .slot_config import controls_by_source, make_slots
 
 
 def _settings(form: dict) -> dict:
@@ -54,47 +35,13 @@ def _settings(form: dict) -> dict:
     }
 
 
-def _schema(
-    hass, name: str = "", slots=(), prefill: dict | None = None, settings=None
-) -> vol.Schema:
-    """Pair source and control selectors inside a native HA section."""
-    entity_options = [selector.SelectOptionDict(value="", label="—")]
-    entity_options.extend(
-        selector.SelectOptionDict(
-            value=state.entity_id,
-            label=f"{state.attributes.get('friendly_name') or state.entity_id} ({state.entity_id})",
-        )
-        for state in sorted(
-            hass.states.async_all("media_player"),
-            key=lambda state: (
-                (state.attributes.get("friendly_name") or state.entity_id).lower(),
-                state.entity_id,
-            ),
-        )
-    )
-    known = {option["value"] for option in entity_options}
-    # Preserve saved IDs while their integration is unloaded.
-    for source, control in slots:
-        for entity_id in (source, control):
-            if entity_id and entity_id not in known:
-                entity_options.append(
-                    selector.SelectOptionDict(value=entity_id, label=entity_id)
-                )
-                known.add(entity_id)
-    entity_selector = selector.SelectSelector(
-        selector.SelectSelectorConfig(
-            options=entity_options,
-            mode=selector.SelectSelectorMode.DROPDOWN,
-        )
-    )
-    fields = {
-        vol.Required(
-            CONF_NAME, default=(prefill or {}).get(CONF_NAME, name)
-        ): selector.TextSelector(),
-    }
-    settings = _settings(prefill if prefill is not None else (settings or {}))
-    fields.update(
+def _source_schema(values: dict) -> vol.Schema:
+    settings = _settings(values)
+    return vol.Schema(
         {
+            vol.Required(
+                CONF_NAME, default=values.get(CONF_NAME, "")
+            ): selector.TextSelector(),
             vol.Optional(
                 CONF_SHOW_SECONDARY, default=settings[CONF_SHOW_SECONDARY]
             ): selector.BooleanSelector(),
@@ -112,33 +59,48 @@ def _schema(
                     unit_of_measurement="s",
                 )
             ),
+            vol.Required(
+                CONF_SOURCES, default=values.get(CONF_SOURCES, [])
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(
+                    domain="media_player", multiple=True, reorder=True
+                )
+            ),
         }
     )
-    for index in range(max(_NUM_SLOTS, len(slots))):
-        key = f"slot_{index + 1}"
-        source, control = slots[index] if index < len(slots) else ("", None)
-        values = (
-            prefill.get(key, {})
-            if prefill is not None
-            else {
-                "source": source,
-                "control": control or "",
-            }
+
+
+def _control_schema(sources: list[str], controls: dict) -> vol.Schema:
+    fields = {}
+    for source in sources:
+        control = controls.get(source)
+        # Suggested values can be cleared; defaults would restore an omitted control.
+        marker = (
+            vol.Optional(source, description={"suggested_value": control})
+            if control
+            else vol.Optional(source)
         )
-        fields[vol.Required(key)] = section(
-            vol.Schema(
-                {
-                    vol.Optional(
-                        "source", default=values.get("source", "")
-                    ): entity_selector,
-                    vol.Optional(
-                        "control", default=values.get("control", "")
-                    ): entity_selector,
-                }
-            ),
-            {"collapsed": index > 0},
+        fields[marker] = selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="media_player")
         )
     return vol.Schema(fields)
+
+
+def _source_description(hass, sources: list[str]) -> dict[str, str]:
+    descriptions = []
+    for source in sources:
+        state = hass.states.get(source)
+        name = (state.attributes.get("friendly_name") if state else None) or source
+        descriptions.append(f"- {name} (`{source}`)")
+    return {"sources": "\n".join(descriptions)}
+
+
+def _input_errors(form: dict) -> dict[str, str]:
+    if not form.get(CONF_NAME, "").strip():
+        return {CONF_NAME: "name_required"}
+    if not form.get(CONF_SOURCES):
+        return {CONF_SOURCES: "sources_required"}
+    return {}
 
 
 class CombinedMediaPlayerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -146,28 +108,42 @@ class CombinedMediaPlayerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     MINOR_VERSION = 1
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
-        errors = {}
-        if user_input is not None:
-            name = user_input.get(CONF_NAME, "").strip()
-            slots = _form_slots(user_input)
-            if not name:
-                errors[CONF_NAME] = "name_required"
-            elif not slots:
-                errors["base"] = "sources_required"
-            else:
-                await self.async_set_unique_id(
-                    f"combined_{name.lower().replace(' ', '_')}"
-                )
-                self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=name,
-                    data={CONF_NAME: name},
-                    options={CONF_SLOTS: slots, **_settings(user_input)},
-                )
+        errors = _input_errors(user_input) if user_input is not None else {}
+        if user_input is not None and not errors:
+            name = user_input[CONF_NAME].strip()
+            await self.async_set_unique_id(f"combined_{name.lower().replace(' ', '_')}")
+            self._abort_if_unique_id_configured()
+            self._pending = {
+                **user_input,
+                CONF_NAME: name,
+                CONF_SOURCES: list(dict.fromkeys(user_input[CONF_SOURCES])),
+            }
+            return await self.async_step_controls()
         return self.async_show_form(
             step_id="user",
-            data_schema=_schema(self.hass, prefill=user_input),
+            data_schema=_source_schema(user_input or {}),
             errors=errors,
+            last_step=False,
+        )
+
+    async def async_step_controls(self, user_input: dict[str, Any] | None = None):
+        if not hasattr(self, "_pending"):
+            return await self.async_step_user()
+        sources = self._pending[CONF_SOURCES]
+        if user_input is not None:
+            return self.async_create_entry(
+                title=self._pending[CONF_NAME],
+                data={CONF_NAME: self._pending[CONF_NAME]},
+                options={
+                    CONF_SLOTS: make_slots(sources, user_input),
+                    **_settings(self._pending),
+                },
+            )
+        return self.async_show_form(
+            step_id="controls",
+            data_schema=_control_schema(sources, {}),
+            description_placeholders=_source_description(self.hass, sources),
+            last_step=True,
         )
 
     @staticmethod
@@ -178,34 +154,24 @@ class CombinedMediaPlayerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class CombinedMediaPlayerOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
-        errors = {}
-        if user_input is not None:
-            name = user_input.get(CONF_NAME, "").strip()
-            slots = _form_slots(user_input)
-            if not name:
-                errors[CONF_NAME] = "name_required"
-            elif not slots:
-                errors["base"] = "sources_required"
-            else:
-                if name != self.config_entry.title:
-                    self.hass.config_entries.async_update_entry(
-                        self.config_entry, title=name
-                    )
-                return self.async_create_entry(
-                    title="",
-                    data={CONF_NAME: name, CONF_SLOTS: slots, **_settings(user_input)},
-                )
-        name = self.config_entry.options.get(CONF_NAME) or self.config_entry.data.get(
-            CONF_NAME, ""
-        )
-        return self.async_show_form(
-            step_id="init",
-            data_schema=_schema(
-                self.hass,
-                name,
-                slots_from_entry(self.config_entry),
-                user_input,
-                {
+        slots = slots_from_entry(self.config_entry)
+        errors = _input_errors(user_input) if user_input is not None else {}
+        if user_input is not None and not errors:
+            self._pending = {
+                **user_input,
+                CONF_NAME: user_input[CONF_NAME].strip(),
+                CONF_SOURCES: list(dict.fromkeys(user_input[CONF_SOURCES])),
+            }
+            self._controls = controls_by_source(slots)
+            return await self.async_step_controls()
+        values = (
+            user_input
+            if user_input is not None
+            else {
+                CONF_NAME: self.config_entry.options.get(CONF_NAME)
+                or self.config_entry.data.get(CONF_NAME, ""),
+                CONF_SOURCES: list(dict.fromkeys(source for source, _ in slots)),
+                **{
                     key: entry_option(self.config_entry, key, default)
                     for key, default in (
                         (CONF_SHOW_SECONDARY, DEFAULT_SHOW_SECONDARY),
@@ -213,6 +179,36 @@ class CombinedMediaPlayerOptionsFlow(config_entries.OptionsFlow):
                         (CONF_HOLD_SECONDS, DEFAULT_HOLD_SECONDS),
                     )
                 },
-            ),
+            }
+        )
+        return self.async_show_form(
+            step_id="init",
+            data_schema=_source_schema(values),
             errors=errors,
+            last_step=False,
+        )
+
+    async def async_step_controls(self, user_input: dict[str, Any] | None = None):
+        if not hasattr(self, "_pending"):
+            return await self.async_step_init()
+        sources = self._pending[CONF_SOURCES]
+        if user_input is not None:
+            name = self._pending[CONF_NAME]
+            if name != self.config_entry.title:
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry, title=name
+                )
+            return self.async_create_entry(
+                title="",
+                data={
+                    CONF_NAME: name,
+                    CONF_SLOTS: make_slots(sources, user_input),
+                    **_settings(self._pending),
+                },
+            )
+        return self.async_show_form(
+            step_id="controls",
+            data_schema=_control_schema(sources, self._controls),
+            description_placeholders=_source_description(self.hass, sources),
+            last_step=True,
         )

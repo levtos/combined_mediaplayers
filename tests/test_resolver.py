@@ -19,6 +19,7 @@ resolve = _MODULE.resolve
 
 class State(NamedTuple):
     state: str
+    attributes: dict | None = None
 
 
 def snapshot(**values):
@@ -49,12 +50,12 @@ def test_priority_and_display_state(first, second, winner, state):
 @pytest.mark.parametrize("value", ["on", "idle"])
 def test_ready_source_has_controls_but_no_display_for_title_or_cover(value):
     result = resolve([("a", "control")], snapshot(a=value, control="off"))
-    assert result == (None, "control", "idle", ())
+    assert result == (None, "control", "idle", (), None)
 
 
 @pytest.mark.parametrize("value", ["unavailable", "unknown", "off", "unexpected"])
 def test_inactive_sources_cannot_win(value):
-    assert resolve([("a", None)], snapshot(a=value)) == (None, None, "off", ())
+    assert resolve([("a", None)], snapshot(a=value)) == (None, None, "off", (), None)
 
 
 @pytest.mark.parametrize("control", ["unavailable", "unknown", None])
@@ -71,14 +72,14 @@ def test_control_belongs_to_winning_slot_even_if_other_control_is_playing():
         [("a", "control_a"), ("b", "control_b")],
         snapshot(a="paused", b="buffering", control_a="playing", control_b="idle"),
     )
-    assert result == ("b", "control_b", "playing", ())
+    assert result == ("b", "control_b", "playing", (), None)
 
 
 def test_idle_control_priority_is_slot_order():
     result = resolve(
         [("a", None), ("b", "control")], snapshot(a="idle", b="on", control="playing")
     )
-    assert result == (None, "a", "idle", ())
+    assert result == (None, "a", "idle", (), None)
 
 
 def test_other_active_sources_are_ordered_and_exclude_winner_and_paused():
@@ -91,5 +92,5 @@ def test_other_active_sources_are_ordered_and_exclude_winner_and_paused():
 
 
 def test_empty_and_missing_states():
-    assert resolve([], {}) == (None, None, "off", ())
-    assert resolve([("missing", None)], {}) == (None, None, "off", ())
+    assert resolve([], {}) == (None, None, "off", (), None)
+    assert resolve([("missing", None)], {}) == (None, None, "off", (), None)

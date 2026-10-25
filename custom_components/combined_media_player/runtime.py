@@ -78,6 +78,9 @@ class EntryRuntime:
             self.failed_at,
             time.monotonic(),
             self.hold_seconds,
+            previous_attributes=self.display_state.attributes
+            if self.display_state
+            else None,
         )
         self.selection, self.failed_at, self.hold_active = result
         if not self.hold_active:

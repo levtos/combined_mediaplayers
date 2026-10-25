@@ -6,7 +6,7 @@ A Home Assistant custom integration that merges multiple media players into a si
 
 ## Features
 
-- **Multiple sources** – eight priority slots for `media_player` entities
+- **Multiple sources** – reorderable `media_player` sources without a fixed form limit
 - **Priority order** – position 1 = highest priority, position N = lowest
 - **Activity detection** – playing/buffering sources beat paused; on/idle never provide media content
 - **Media attributes** – title, artist, album, app name, series/season/episode and position come from the display winner
@@ -41,7 +41,7 @@ The same pure resolver selects the display winner and control target. All entiti
 
 ## Options added in 1.8.0
 
-These controls appear above the slots in setup and options. Existing entries use their defaults without a migration. Config-entry version 2 and the slot storage format are unchanged.
+These controls appear above the source list in the first setup/options step. Existing entries use their defaults without a migration. Config-entry version 2 and the slot storage format are unchanged.
 
 | Option | German label | Default |
 | --- | --- | --- |
@@ -73,7 +73,9 @@ The cover image entity can retain the last good image during a brief gap for the
 
 ### Picture in picture
 
-When enabled, only `media_player` image requests add the first entry of `other_active_sources` as a secondary cover. The main canvas keeps its original dimensions. The secondary image is center-cropped to a square (34% of the shorter main side), placed bottom-right with a 4% margin, rounded corners, a thin translucent light border and a soft shadow. There is at most one inset; if it cannot be fetched, the main cover is served alone.
+When enabled, only `media_player` image requests add `secondary_source` as a secondary cover. The pure resolver chooses the first `other_active_sources` entry whose title differs from the main title after trimming surrounding whitespace and casefolding. If either title is missing or blank, it is not considered a duplicate. If only duplicates remain, there is no secondary cover. For example, a mirrored game-presence source is skipped so a later music source can appear. `other_active_sources` still lists all other playing sources, including duplicates. During hold time, comparison uses the retained main title.
+
+The main canvas keeps its original dimensions. The secondary image is center-cropped to a square (34% of the shorter main side), placed bottom-right with a 4% margin, rounded corners, a thin translucent light border and a soft shadow. There is at most one inset; if it cannot be fetched, the main cover is served alone.
 
 **The inset is visible only when the client follows the media player's image, for example `media_player.media`.** A card or client following the dedicated `image` entity sees only the main cover. Both images use the same cache/entity/HA-relative-URL fetch helper. Source, URL and cached results must have an image MIME type and pass Pillow verification in the executor. Invalid bytes are rejected and the next fetch route is tried; invalid stored disk images are removed on cache initialization. Composition also runs in the executor with Pillow. Failure or a missing Pillow installation serves the main cover and logs the exception class at most once per main/secondary source pair and image fingerprint, without messages or URLs. A four-entry LRU cache retains composed images in memory. The media image hash includes both source identities, pictures and titles.
 
@@ -94,7 +96,7 @@ The `image` entity is useful in dashboards (Picture card) and automations where 
 
 Both entities expose an `active_source` attribute with the `entity_id` of the currently winning source.
 
-The cover entity also retains `active_source_name`. The player exposes `control_target`, ordered `slots` (`source`, optional `control`), `other_active_sources` (additional playing/buffering sources in effective slot order), `override` and `hold_active`. The source sensor exposes `active_source_name`, `control_target`, `other_active_sources`, `override` (selected entity ID or null for automatic), and `hold_active`. The source's friendly name is deliberately called `active_source_name`; HA reserves `friendly_name` for the sensor's own translated name.
+The cover entity also retains `active_source_name`. The player exposes `control_target`, ordered `slots` (`source`, optional `control`), `other_active_sources` (additional playing/buffering sources in effective slot order), `secondary_source`, `override` and `hold_active`. The source sensor exposes `active_source_name`, `control_target`, `other_active_sources`, `secondary_source`, `override` (selected entity ID or null for automatic), and `hold_active`. Diagnostics include `secondary_source` in the resolved selection. The source's friendly name is deliberately called `active_source_name`; HA reserves `friendly_name` for the sensor's own translated name.
 
 ## Repairs and diagnostics
 
@@ -118,13 +120,15 @@ Copy the `custom_components/combined_media_player` folder into your `config/cust
 
 1. **Settings → Devices & Services → Add Integration → Combined Media Player**
 2. Enter a name (e.g. "Living Room")
-3. Expand priority sections and select each source, starting with slot 1
-4. Optionally choose **Control via** for each source; leave unused fields on **—**
+3. Select **Sources** and drag them into priority order; the top source has the highest priority. Set the global options, then continue
+4. In **Control via (optional)**, choose an optional media player for each source. Field labels are source entity IDs; the description maps every name and ID in priority order. Leave a field empty for self-control
 5. Save – `media_player.<name>` and `image.<name>_cover` appear
 
 Sources, their order and the name can be changed at any time under **Options** of the integration.
 
-Setup and options use the same slot form. Empty slots are removed when saved; duplicate sources keep their first slot and its control. Both source and control entities are monitored for state changes. Existing configurations with more than eight sources retain all sources during migration and editing.
+Setup and options use the same two steps and require at least one source. There is no fixed source-count limit. Duplicate sources keep their first occurrence. Saved control targets are prefilled by source entity ID, so dragging a source to another position keeps its control device attached; new sources default to self-control. Clearing a control field removes that mapping. Renaming and other changes are saved only after the second step is submitted.
+
+The stored `options["slots"]` list of source/control pairs remains unchanged, so this UI change needs no migration. Both source and control entities are monitored for state changes. Existing configurations and entity identities remain intact.
 
 ### Upgrade to 1.7.0
 
