@@ -292,12 +292,8 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         return hashlib.sha256(fingerprint.encode()).hexdigest()[:32]
 
     def _secondary_state(self) -> State | None:
-        sources = self._resolve().other_active_sources
-        return (
-            self.hass.states.get(sources[0])
-            if self._show_secondary and sources
-            else None
-        )
+        source = self._resolve().secondary_source
+        return self.hass.states.get(source) if self._show_secondary and source else None
 
     @property
     def media_image_url(self) -> str | None:
@@ -462,6 +458,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
             "override": self._runtime.override,
             "hold_active": self._runtime.hold_active,
             "other_active_sources": list(selection.other_active_sources),
+            "secondary_source": selection.secondary_source,
             "slots": [
                 {"source": source, "control": control}
                 for source, control in self._slots

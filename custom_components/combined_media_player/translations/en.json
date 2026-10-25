@@ -3,108 +3,24 @@
     "step": {
       "user": {
         "title": "Create Combined Media Player",
-        "description": "Name the player and arrange sources by priority. Slot 1 has the highest priority. Playing wins over paused. Sources with on/idle provide no media display. Optionally choose a control device per source. Leave unused fields on “—”.",
+        "description": "Drag to change the order. Top = highest priority. In the next step, optionally assign a control device to each source.",
         "data": {
           "name": "Name",
           "show_secondary": "Show secondary source",
           "hide_radio_station": "Hide station name for radio",
-          "hold_seconds": "Hold time (seconds)"
-        },
-        "sections": {
-          "slot_1": {
-            "name": "Priority 1 (highest)",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          },
-          "slot_2": {
-            "name": "Priority 2",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          },
-          "slot_3": {
-            "name": "Priority 3",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          },
-          "slot_4": {
-            "name": "Priority 4",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          },
-          "slot_5": {
-            "name": "Priority 5",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          },
-          "slot_6": {
-            "name": "Priority 6",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          },
-          "slot_7": {
-            "name": "Priority 7",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          },
-          "slot_8": {
-            "name": "Priority 8",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          }
+          "hold_seconds": "Hold time (seconds)",
+          "sources": "Sources"
         },
         "data_description": {
           "show_secondary": "Show the first other playing source in the bottom-right of the media player's cover. The cover image entity remains unchanged.",
           "hide_radio_station": "Hide the station name in the album field when the content ID contains ://radio/. Other albums remain visible.",
-          "hold_seconds": "Keep the previous display during brief playback gaps for 0–30 seconds. A higher-priority playing source wins immediately. Set 0 to disable."
+          "hold_seconds": "Keep the previous display during brief playback gaps for 0–30 seconds. A higher-priority playing source wins immediately. Set 0 to disable.",
+          "sources": "Select at least one source and drag the entries into the desired order."
         }
+      },
+      "controls": {
+        "title": "Control via (optional)",
+        "description": "Optionally choose the device that controls playback and volume for each source. Each field is labeled with its source entity ID. Empty = the source itself.\n\nSources in priority order:\n{sources}"
       }
     },
     "error": {
@@ -119,108 +35,24 @@
     "step": {
       "init": {
         "title": "Edit Combined Media Player",
-        "description": "Name the player and arrange sources by priority. Slot 1 has the highest priority. Playing wins over paused. Sources with on/idle provide no media display. Optionally choose a control device per source. Leave unused fields on “—”.",
+        "description": "Drag to change the order. Top = highest priority. In the next step, optionally assign a control device to each source.",
         "data": {
           "name": "Name",
           "show_secondary": "Show secondary source",
           "hide_radio_station": "Hide station name for radio",
-          "hold_seconds": "Hold time (seconds)"
-        },
-        "sections": {
-          "slot_1": {
-            "name": "Priority 1 (highest)",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          },
-          "slot_2": {
-            "name": "Priority 2",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          },
-          "slot_3": {
-            "name": "Priority 3",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          },
-          "slot_4": {
-            "name": "Priority 4",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          },
-          "slot_5": {
-            "name": "Priority 5",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          },
-          "slot_6": {
-            "name": "Priority 6",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          },
-          "slot_7": {
-            "name": "Priority 7",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          },
-          "slot_8": {
-            "name": "Priority 8",
-            "data": {
-              "source": "Source",
-              "control": "Control via (optional)"
-            },
-            "data_description": {
-              "source": "Empty = this slot is unused.",
-              "control": "Device that receives play/pause and volume commands when this source is displayed. Empty = the source itself."
-            }
-          }
+          "hold_seconds": "Hold time (seconds)",
+          "sources": "Sources"
         },
         "data_description": {
           "show_secondary": "Show the first other playing source in the bottom-right of the media player's cover. The cover image entity remains unchanged.",
           "hide_radio_station": "Hide the station name in the album field when the content ID contains ://radio/. Other albums remain visible.",
-          "hold_seconds": "Keep the previous display during brief playback gaps for 0–30 seconds. A higher-priority playing source wins immediately. Set 0 to disable."
+          "hold_seconds": "Keep the previous display during brief playback gaps for 0–30 seconds. A higher-priority playing source wins immediately. Set 0 to disable.",
+          "sources": "Select at least one source and drag the entries into the desired order."
         }
+      },
+      "controls": {
+        "title": "Control via (optional)",
+        "description": "Optionally choose the device that controls playback and volume for each source. Each field is labeled with its source entity ID. Empty = the source itself.\n\nSources in priority order:\n{sources}"
       }
     },
     "error": {

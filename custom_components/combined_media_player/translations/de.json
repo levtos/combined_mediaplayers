@@ -3,108 +3,24 @@
     "step": {
       "user": {
         "title": "Kombinierten Media Player erstellen",
-        "description": "Vergib einen Namen und ordne deine Quellen nach Priorität. Slot 1 hat die höchste Priorität. Wiedergabe gewinnt vor Pause. Quellen mit on/idle liefern keine Medienanzeige. Wähle bei Bedarf pro Quelle ein Gerät für die Steuerung. Unbenutzte Felder bleiben auf „—“.",
+        "description": "Reihenfolge per Ziehen ändern. Oben = höchste Priorität. Im nächsten Schritt kannst du jeder Quelle ein Steuergerät zuordnen.",
         "data": {
           "name": "Name",
           "show_secondary": "Nebenquelle einblenden",
           "hide_radio_station": "Sendername bei Radio ausblenden",
-          "hold_seconds": "Haltezeit (Sekunden)"
-        },
-        "sections": {
-          "slot_1": {
-            "name": "Priorität 1 (höchste)",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          },
-          "slot_2": {
-            "name": "Priorität 2",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          },
-          "slot_3": {
-            "name": "Priorität 3",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          },
-          "slot_4": {
-            "name": "Priorität 4",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          },
-          "slot_5": {
-            "name": "Priorität 5",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          },
-          "slot_6": {
-            "name": "Priorität 6",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          },
-          "slot_7": {
-            "name": "Priorität 7",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          },
-          "slot_8": {
-            "name": "Priorität 8",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          }
+          "hold_seconds": "Haltezeit (Sekunden)",
+          "sources": "Quellen"
         },
         "data_description": {
           "show_secondary": "Blendet die erste weitere spielende Quelle unten rechts im Media-Player-Cover ein. Die Cover-Bild-Entität bleibt ohne Einblendung.",
           "hide_radio_station": "Blendet den Sendernamen im Album-Feld aus, wenn die Inhalts-ID ://radio/ enthält. Andere Alben bleiben sichtbar.",
-          "hold_seconds": "Hält die bisherige Anzeige bei kurzen Wiedergabelücken für 0–30 Sekunden. Eine höher priorisierte spielende Quelle gewinnt sofort. 0 schaltet die Haltezeit aus."
+          "hold_seconds": "Hält die bisherige Anzeige bei kurzen Wiedergabelücken für 0–30 Sekunden. Eine höher priorisierte spielende Quelle gewinnt sofort. 0 schaltet die Haltezeit aus.",
+          "sources": "Wähle mindestens eine Quelle und ziehe die Einträge in die gewünschte Reihenfolge."
         }
+      },
+      "controls": {
+        "title": "Steuerung über (optional)",
+        "description": "Wähle für jede Quelle bei Bedarf das Gerät, das Wiedergabe und Lautstärke steuert. Die Felder sind mit der jeweiligen Entity-ID beschriftet. Leer = die Quelle selbst.\n\nQuellen in Prioritätsreihenfolge:\n{sources}"
       }
     },
     "error": {
@@ -119,108 +35,24 @@
     "step": {
       "init": {
         "title": "Kombinierten Media Player bearbeiten",
-        "description": "Vergib einen Namen und ordne deine Quellen nach Priorität. Slot 1 hat die höchste Priorität. Wiedergabe gewinnt vor Pause. Quellen mit on/idle liefern keine Medienanzeige. Wähle bei Bedarf pro Quelle ein Gerät für die Steuerung. Unbenutzte Felder bleiben auf „—“.",
+        "description": "Reihenfolge per Ziehen ändern. Oben = höchste Priorität. Im nächsten Schritt kannst du jeder Quelle ein Steuergerät zuordnen.",
         "data": {
           "name": "Name",
           "show_secondary": "Nebenquelle einblenden",
           "hide_radio_station": "Sendername bei Radio ausblenden",
-          "hold_seconds": "Haltezeit (Sekunden)"
-        },
-        "sections": {
-          "slot_1": {
-            "name": "Priorität 1 (höchste)",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          },
-          "slot_2": {
-            "name": "Priorität 2",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          },
-          "slot_3": {
-            "name": "Priorität 3",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          },
-          "slot_4": {
-            "name": "Priorität 4",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          },
-          "slot_5": {
-            "name": "Priorität 5",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          },
-          "slot_6": {
-            "name": "Priorität 6",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          },
-          "slot_7": {
-            "name": "Priorität 7",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          },
-          "slot_8": {
-            "name": "Priorität 8",
-            "data": {
-              "source": "Quelle",
-              "control": "Steuerung über (optional)"
-            },
-            "data_description": {
-              "source": "Leer = dieser Slot bleibt unbenutzt.",
-              "control": "Gerät, das Play/Pause und Lautstärke erhält, wenn diese Quelle angezeigt wird. Leer = die Quelle selbst."
-            }
-          }
+          "hold_seconds": "Haltezeit (Sekunden)",
+          "sources": "Quellen"
         },
         "data_description": {
           "show_secondary": "Blendet die erste weitere spielende Quelle unten rechts im Media-Player-Cover ein. Die Cover-Bild-Entität bleibt ohne Einblendung.",
           "hide_radio_station": "Blendet den Sendernamen im Album-Feld aus, wenn die Inhalts-ID ://radio/ enthält. Andere Alben bleiben sichtbar.",
-          "hold_seconds": "Hält die bisherige Anzeige bei kurzen Wiedergabelücken für 0–30 Sekunden. Eine höher priorisierte spielende Quelle gewinnt sofort. 0 schaltet die Haltezeit aus."
+          "hold_seconds": "Hält die bisherige Anzeige bei kurzen Wiedergabelücken für 0–30 Sekunden. Eine höher priorisierte spielende Quelle gewinnt sofort. 0 schaltet die Haltezeit aus.",
+          "sources": "Wähle mindestens eine Quelle und ziehe die Einträge in die gewünschte Reihenfolge."
         }
+      },
+      "controls": {
+        "title": "Steuerung über (optional)",
+        "description": "Wähle für jede Quelle bei Bedarf das Gerät, das Wiedergabe und Lautstärke steuert. Die Felder sind mit der jeweiligen Entity-ID beschriftet. Leer = die Quelle selbst.\n\nQuellen in Prioritätsreihenfolge:\n{sources}"
       }
     },
     "error": {

@@ -1,14 +1,17 @@
 """Pure slot resolution shared by the player and its cover entity."""
 
 from collections.abc import Mapping, Sequence
-from typing import NamedTuple, Protocol
+from typing import Any, NamedTuple, Protocol
 
 
 class SourceState(Protocol):
-    """Only a state value is needed; no Home Assistant dependency."""
+    """Read state and media attributes without a Home Assistant dependency."""
 
     @property
     def state(self) -> str: ...
+
+    @property
+    def attributes(self) -> Mapping[str, Any] | None: ...
 
 
 class Resolution(NamedTuple):
@@ -16,6 +19,23 @@ class Resolution(NamedTuple):
     control_target: str | None
     cmp_state: str
     other_active_sources: tuple[str, ...]
+    secondary_source: str | None = None
+
+
+def _secondary_source(
+    display: str | None, others: Sequence[str], states: Mapping[str, SourceState]
+) -> str | None:
+    def title(source):
+        state = states.get(source)
+        value = (state.attributes or {}).get("media_title") if state else None
+        return (value.strip().casefold() or None) if isinstance(value, str) else None
+
+    main_title = title(display)
+    for source in others:
+        candidate_title = title(source)
+        if not main_title or not candidate_title or candidate_title != main_title:
+            return source
+    return None
 
 
 def resolve(
@@ -57,11 +77,14 @@ def resolve(
         if display
         else ("idle" if control_slot else "off")
     )
+    others = tuple(source for source in active if not display or source != display[0])
+    display_source = display[0] if display else None
     return Resolution(
-        display[0] if display else None,
+        display_source,
         target,
         cmp_state,
-        tuple(source for source in active if not display or source != display[0]),
+        others,
+        _secondary_source(display_source, others, states),
     )
 
 
@@ -88,6 +111,7 @@ class HeldResolution(NamedTuple):
 
 class _HeldState(NamedTuple):
     state: str
+    attributes: Mapping[str, Any] | None = None
 
 
 def resolve_with_hold(
@@ -97,6 +121,7 @@ def resolve_with_hold(
     failed_at: float | None,
     now: float,
     hold_seconds: float,
+    previous_attributes: Mapping[str, Any] | None = None,
 ) -> HeldResolution:
     """Hold a lost display winner, unless a higher-priority source plays.
 
@@ -125,7 +150,12 @@ def resolve_with_hold(
     if now - failed_at >= hold_seconds:
         return HeldResolution(current, None, False)
     held_states = dict(states)
-    held_states[source] = _HeldState(previous.cmp_state)
+    held_states[source] = _HeldState(
+        previous.cmp_state,
+        previous_attributes
+        if previous_attributes is not None
+        else (state.attributes if state else None),
+    )
     held_slot = next(slot for slot in slots if slot[0] == source)
     held = resolve([held_slot], held_states)
     others = tuple(
@@ -137,4 +167,11 @@ def resolve_with_hold(
             and states[sid].state in {"playing", "buffering"}
         )
     )
-    return HeldResolution(held._replace(other_active_sources=others), failed_at, True)
+    return HeldResolution(
+        held._replace(
+            other_active_sources=others,
+            secondary_source=_secondary_source(source, others, held_states),
+        ),
+        failed_at,
+        True,
+    )

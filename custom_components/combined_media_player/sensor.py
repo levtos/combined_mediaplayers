@@ -45,6 +45,7 @@ class ActiveSourceSensor(SensorEntity):
             else None,
             "control_target": selection.control_target,
             "other_active_sources": list(selection.other_active_sources),
+            "secondary_source": selection.secondary_source,
             "override": self._runtime.override,
             "hold_active": self._runtime.hold_active,
         }
