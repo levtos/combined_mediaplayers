@@ -5,6 +5,7 @@ from collections.abc import Callable
 import hashlib
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -25,6 +26,7 @@ from homeassistant.helpers.network import get_url as ha_get_url
 from homeassistant.util import dt as dt_util, slugify
 
 from .const import DOMAIN
+from .image_validation import fetch_validated_image, image_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -78,12 +80,30 @@ def _write_json(path: Path, data: dict) -> bool:
 
 def _setup_cache_dir(cache_dir: Path, index_path: Path) -> dict:
     cache_dir.mkdir(parents=True, exist_ok=True)
+    index = {}
     if index_path.exists():
         try:
-            return json.loads(index_path.read_text())
+            loaded = json.loads(index_path.read_text())
+            index = loaded if isinstance(loaded, dict) else {}
         except Exception:
             pass
-    return {}
+    valid = {}
+    for key, metadata in index.items():
+        # The index is data; never use an unvalidated name as a filesystem path.
+        if not re.fullmatch(r"[0-9a-f]{32}", key):
+            continue
+        path = cache_dir / f"{key}.bin"
+        data = _read_file(path)
+        if (
+            isinstance(metadata, dict)
+            and image_error(data, metadata.get("content_type")) is None
+        ):
+            valid[key] = metadata
+        else:
+            _delete_files([path])
+    if valid != index:
+        _write_json(index_path, valid)
+    return valid
 
 
 def _delete_files(paths: list[Path]) -> None:
@@ -177,10 +197,18 @@ class _CoverCache:
         # 1. Memory layer (fastest – no I/O)
         entry = self._mem.get(key)
         if entry is not None:
-            if time.monotonic() - entry.last_used <= _CACHE_TTL_SECONDS:
+            error = await self._hass.async_add_executor_job(
+                image_error, entry.data, entry.content_type
+            )
+            if (
+                error is None
+                and time.monotonic() - entry.last_used <= _CACHE_TTL_SECONDS
+            ):
                 entry.last_used = time.monotonic()
                 return entry.data, entry.content_type
-            del self._mem[key]
+            self._mem.pop(key, None)
+            if error is not None:
+                self._evict_disk(self._hash(key))
 
         # 2. Disk layer (stable keys only)
         if not self._is_stable(key) or self._cache_dir is None:
@@ -202,9 +230,16 @@ class _CoverCache:
             self._evict_disk(h)
             return None
 
+        content_type = meta.get("content_type")
+        if (
+            await self._hass.async_add_executor_job(image_error, data, content_type)
+            is not None
+        ):
+            self._evict_disk(h)
+            return None
+
         meta["last_used"] = time.time()
         self._dirty = True
-        content_type = meta.get("content_type", "image/jpeg")
         # Promote to memory so subsequent requests within the session skip disk I/O
         self._mem[key] = _MemEntry(
             data=data, content_type=content_type, last_used=time.monotonic()
@@ -213,6 +248,11 @@ class _CoverCache:
 
     async def put(self, key: str, data: bytes, content_type: str) -> None:
         """Store image in cache (memory always, disk for stable keys)."""
+        if (
+            await self._hass.async_add_executor_job(image_error, data, content_type)
+            is not None
+        ):
+            return
         self._mem[key] = _MemEntry(
             data=data, content_type=content_type, last_used=time.monotonic()
         )
@@ -229,6 +269,10 @@ class _CoverCache:
                 "last_used": time.time(),
             }
             self._dirty = True
+
+    async def discard(self, key: str) -> None:
+        self._mem.pop(key, None)
+        self._evict_disk(self._hash(key))
 
     # ------------------------------------------------------------------
     # Maintenance
@@ -300,6 +344,38 @@ async def async_get_cover_cache(hass: HomeAssistant) -> _CoverCache:
         return data[_HASS_DATA_CACHE_KEY]
 
 
+def _record_fetch_status(
+    hass: HomeAssistant, source: str, route: str, reason: str | None
+) -> None:
+    hass.data.setdefault(DOMAIN, {}).setdefault("image_fetch_status", {})[source] = {
+        "status": "ok" if reason is None else "failed",
+        "reason": reason,
+        "route": route,
+        "at": dt_util.utcnow().isoformat(),
+    }
+    if reason is not None:
+        _LOGGER.debug("%s: %s image fetch failed (%s)", source, route, reason)
+
+
+def record_composition_status(
+    hass, entry_id, primary, secondary, fingerprint, reason=None
+) -> None:
+    hass.data.setdefault(DOMAIN, {}).setdefault("composition_status", {})[entry_id] = {
+        "status": "ok" if reason is None else "failed",
+        "reason": reason,
+        "at": dt_util.utcnow().isoformat(),
+        "primary": primary,
+        "secondary": secondary,
+        "fingerprint": fingerprint,
+    }
+
+
+async def _validated_result(hass, source, route, image):
+    reason = await hass.async_add_executor_job(image_error, *image)
+    _record_fetch_status(hass, source, route, reason)
+    return image if reason is None else None
+
+
 async def _async_entity_image(
     hass: HomeAssistant, source: str
 ) -> tuple[bytes, str] | None:
@@ -312,15 +388,18 @@ async def _async_entity_image(
     if entity is not None and hasattr(entity, "async_get_media_image"):
         try:
             data, content_type = await entity.async_get_media_image()
-            if data:
-                return data, content_type or "image/jpeg"
-        except Exception:
+            return await _validated_result(hass, source, "entity", (data, content_type))
+        except Exception as error:
             # Never log an exception string: provider errors may contain token URLs.
-            _LOGGER.debug("Source entity image fetch failed")
+            _record_fetch_status(hass, source, "entity", type(error).__name__)
+            return None
+    _record_fetch_status(hass, source, "entity", "no_image")
     return None
 
 
-async def _async_fetch_url(hass: HomeAssistant, url: str) -> tuple[bytes, str] | None:
+async def _async_fetch_url(
+    hass: HomeAssistant, url: str, source: str
+) -> tuple[bytes, str] | None:
     if url.startswith("/"):
         base = None
         for kw in (
@@ -338,9 +417,12 @@ async def _async_fetch_url(hass: HomeAssistant, url: str) -> tuple[bytes, str] |
             url, timeout=_FETCH_TIMEOUT
         ) as response:
             if response.status == 200:
-                return await response.read(), response.content_type or "image/jpeg"
-    except Exception:
-        pass
+                return await _validated_result(
+                    hass, source, "url", (await response.read(), response.content_type)
+                )
+            _record_fetch_status(hass, source, "url", f"HTTP {response.status}")
+    except Exception as error:
+        _record_fetch_status(hass, source, "url", type(error).__name__)
     return None
 
 
@@ -352,16 +434,19 @@ async def async_fetch_source_image(
     """Shared cache/entity/URL fetch for main and secondary images."""
     cache = await async_get_cover_cache(hass)
     key = _image_cache_key(state, state.entity_id)
-    image = await cache.get(key) if key else None
-    if image is None:
-        image = await _async_entity_image(hass, state.entity_id)
-        if image is None and (url := state.attributes.get(ATTR_ENTITY_PICTURE)):
-            image = await _async_fetch_url(hass, url)
-        if not is_current():
-            return None
-        if image is not None and key:
-            await cache.put(key, *image)
-    return image if is_current() else None
+    fetchers = [("entity", lambda: _async_entity_image(hass, state.entity_id))]
+    if url := state.attributes.get(ATTR_ENTITY_PICTURE):
+        fetchers.append(("url", lambda: _async_fetch_url(hass, url, state.entity_id)))
+    return await fetch_validated_image(
+        cache,
+        key,
+        fetchers,
+        hass.async_add_executor_job,
+        is_current,
+        lambda route, reason: _record_fetch_status(
+            hass, state.entity_id, route, reason
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
