@@ -1,10 +1,5 @@
 """Pure feature contracts, using synthetic states and in-memory test images."""
 
-import importlib.util
-from io import BytesIO
-from pathlib import Path
-
-from PIL import Image, ImageDraw
 import pytest
 
 from test_resolver import _MODULE, snapshot
@@ -13,12 +8,6 @@ priority_slots = _MODULE.priority_slots
 resolve_with_hold = _MODULE.resolve_with_hold
 resolve = _MODULE.resolve
 is_radio = _MODULE.is_radio
-_SPEC = importlib.util.spec_from_file_location(
-    "cmp_compositor",
-    Path(__file__).parents[1] / "custom_components/combined_media_player/compositor.py",
-)
-_COMPOSITOR = importlib.util.module_from_spec(_SPEC)
-_SPEC.loader.exec_module(_COMPOSITOR)
 
 
 def test_override_keeps_slot_controls_and_does_not_mutate_order():
@@ -120,26 +109,3 @@ def test_hold_keeps_original_failure_time_and_paused_state():
 )
 def test_radio_detection(content_id, expected):
     assert is_radio(content_id) is expected
-
-
-def test_composition_preserves_canvas_and_center_crops_landscape_secondary():
-    main = Image.new("RGB", (400, 300), "red")
-    secondary = Image.new("RGB", (600, 200), "blue")
-    draw = ImageDraw.Draw(secondary)
-    draw.rectangle((0, 0, 199, 199), fill="green")
-    draw.rectangle((400, 0, 599, 199), fill="yellow")
-    main_bytes, secondary_bytes = BytesIO(), BytesIO()
-    main.save(main_bytes, format="PNG")
-    secondary.save(secondary_bytes, format="PNG")
-    composed = _COMPOSITOR.compose_picture(
-        main_bytes.getvalue(), secondary_bytes.getvalue()
-    )
-    with Image.open(BytesIO(composed)) as output:
-        assert output.size == main.size
-        assert output.getpixel((0, 0)) == (255, 0, 0, 255)
-        x, y, side = _COMPOSITOR.pip_geometry(*main.size)
-        assert side == 102
-        assert 400 - x - side == 12 and 300 - y - side == 12
-        for sample_x in (side // 4, side // 2, side * 3 // 4):
-            assert output.getpixel((x + sample_x, y + side // 2)) == (0, 0, 255, 255)
-        assert output.getpixel((x, y))[:3] != (0, 0, 255)

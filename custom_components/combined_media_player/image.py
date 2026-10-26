@@ -357,19 +357,6 @@ def _record_fetch_status(
         _LOGGER.debug("%s: %s image fetch failed (%s)", source, route, reason)
 
 
-def record_composition_status(
-    hass, entry_id, primary, secondary, fingerprint, reason=None
-) -> None:
-    hass.data.setdefault(DOMAIN, {}).setdefault("composition_status", {})[entry_id] = {
-        "status": "ok" if reason is None else "failed",
-        "reason": reason,
-        "at": dt_util.utcnow().isoformat(),
-        "primary": primary,
-        "secondary": secondary,
-        "fingerprint": fingerprint,
-    }
-
-
 async def _validated_result(hass, source, route, image):
     reason = await hass.async_add_executor_job(image_error, *image)
     _record_fetch_status(hass, source, route, reason)
