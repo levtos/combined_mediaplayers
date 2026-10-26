@@ -3,24 +3,30 @@
     "step": {
       "user": {
         "title": "Create Combined Media Player",
-        "description": "Drag to change the order. Top = highest priority. In the next step, optionally assign a control device to each source.",
+        "description": "Drag to change the order. Top = highest priority. In the next step, set an optional control target and display duration per source.",
         "data": {
           "name": "Name",
-          "show_secondary": "Show secondary source",
           "hide_radio_station": "Hide station name for radio",
           "hold_seconds": "Hold time (seconds)",
-          "sources": "Sources"
+          "sources": "Sources",
+          "rotation_seconds": "Switch interval (seconds)",
+          "show_other_sources": "Show other sources in the second line"
         },
         "data_description": {
-          "show_secondary": "Show the first other playing source in the bottom-right of the media player's cover. The cover image entity remains unchanged.",
           "hide_radio_station": "Hide the station name in the album field when the content ID contains ://radio/. Other albums remain visible.",
           "hold_seconds": "Keep the previous display during brief playback gaps for 0–30 seconds. A higher-priority playing source wins immediately. Set 0 to disable.",
-          "sources": "Select at least one source and drag the entries into the desired order."
+          "sources": "Select at least one source and drag the entries into the desired order.",
+          "rotation_seconds": "Cover duration with multiple playing sources: 5–600 seconds, default 30. Override per source in the next step.",
+          "show_other_sources": "List other rotation sources in the album field. Title, artist and controls stay with the display source."
         }
       },
       "controls": {
-        "title": "Control via (optional)",
-        "description": "Optionally choose the device that controls playback and volume for each source. Each field is labeled with its source entity ID. Empty = the source itself.\n\nSources in priority order:\n{sources}"
+        "title": "Per-source settings",
+        "description": "Each field names its source and entity ID. Control via: empty = source itself. Display duration: 5–600 seconds, empty = global switch interval. Both values follow the source when reordered.\n\nSources in priority order:\n{sources}",
+        "data": {
+          "control": "Control via (optional)",
+          "display_seconds": "Display duration (seconds)"
+        }
       }
     },
     "error": {
@@ -35,24 +41,30 @@
     "step": {
       "init": {
         "title": "Edit Combined Media Player",
-        "description": "Drag to change the order. Top = highest priority. In the next step, optionally assign a control device to each source.",
+        "description": "Drag to change the order. Top = highest priority. In the next step, set an optional control target and display duration per source.",
         "data": {
           "name": "Name",
-          "show_secondary": "Show secondary source",
           "hide_radio_station": "Hide station name for radio",
           "hold_seconds": "Hold time (seconds)",
-          "sources": "Sources"
+          "sources": "Sources",
+          "rotation_seconds": "Switch interval (seconds)",
+          "show_other_sources": "Show other sources in the second line"
         },
         "data_description": {
-          "show_secondary": "Show the first other playing source in the bottom-right of the media player's cover. The cover image entity remains unchanged.",
           "hide_radio_station": "Hide the station name in the album field when the content ID contains ://radio/. Other albums remain visible.",
           "hold_seconds": "Keep the previous display during brief playback gaps for 0–30 seconds. A higher-priority playing source wins immediately. Set 0 to disable.",
-          "sources": "Select at least one source and drag the entries into the desired order."
+          "sources": "Select at least one source and drag the entries into the desired order.",
+          "rotation_seconds": "Cover duration with multiple playing sources: 5–600 seconds, default 30. Override per source in the next step.",
+          "show_other_sources": "List other rotation sources in the album field. Title, artist and controls stay with the display source."
         }
       },
       "controls": {
-        "title": "Control via (optional)",
-        "description": "Optionally choose the device that controls playback and volume for each source. Each field is labeled with its source entity ID. Empty = the source itself.\n\nSources in priority order:\n{sources}"
+        "title": "Per-source settings",
+        "description": "Each field names its source and entity ID. Control via: empty = source itself. Display duration: 5–600 seconds, empty = global switch interval. Both values follow the source when reordered.\n\nSources in priority order:\n{sources}",
+        "data": {
+          "control": "Control via (optional)",
+          "display_seconds": "Display duration (seconds)"
+        }
       }
     },
     "error": {

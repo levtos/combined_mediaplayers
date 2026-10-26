@@ -48,6 +48,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "Removed legacy audio_sources during slot migration; "
                 "configure optional control targets per slot"
             )
+    if entry.version == 2 and entry.minor_version < 2:
+        data, options = dict(entry.data), dict(entry.options)
+        for config in (data, options):
+            config.pop("show_secondary", None)
+        hass.config_entries.async_update_entry(
+            entry, data=data, options=options, minor_version=2
+        )
     return True
 
 

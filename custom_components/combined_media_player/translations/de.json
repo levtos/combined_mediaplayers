@@ -3,24 +3,30 @@
     "step": {
       "user": {
         "title": "Kombinierten Media Player erstellen",
-        "description": "Reihenfolge per Ziehen ändern. Oben = höchste Priorität. Im nächsten Schritt kannst du jeder Quelle ein Steuergerät zuordnen.",
+        "description": "Reihenfolge per Ziehen ändern. Oben = höchste Priorität. Im nächsten Schritt kannst du je Quelle Steuerziel und Anzeigedauer festlegen.",
         "data": {
           "name": "Name",
-          "show_secondary": "Nebenquelle einblenden",
           "hide_radio_station": "Sendername bei Radio ausblenden",
           "hold_seconds": "Haltezeit (Sekunden)",
-          "sources": "Quellen"
+          "sources": "Quellen",
+          "rotation_seconds": "Wechselintervall (Sekunden)",
+          "show_other_sources": "Weitere Quellen in zweiter Zeile anzeigen"
         },
         "data_description": {
-          "show_secondary": "Blendet die erste weitere spielende Quelle unten rechts im Media-Player-Cover ein. Die Cover-Bild-Entität bleibt ohne Einblendung.",
           "hide_radio_station": "Blendet den Sendernamen im Album-Feld aus, wenn die Inhalts-ID ://radio/ enthält. Andere Alben bleiben sichtbar.",
           "hold_seconds": "Hält die bisherige Anzeige bei kurzen Wiedergabelücken für 0–30 Sekunden. Eine höher priorisierte spielende Quelle gewinnt sofort. 0 schaltet die Haltezeit aus.",
-          "sources": "Wähle mindestens eine Quelle und ziehe die Einträge in die gewünschte Reihenfolge."
+          "sources": "Wähle mindestens eine Quelle und ziehe die Einträge in die gewünschte Reihenfolge.",
+          "rotation_seconds": "Anzeigedauer je Cover bei mehreren gleichzeitig laufenden Quellen: 5–600 Sekunden, Standard 30. Pro Quelle im nächsten Schritt überschreibbar.",
+          "show_other_sources": "Weitere Rotationsquellen im Albumfeld anzeigen. Titel, Interpret und Steuerung bleiben bei der Anzeigequelle."
         }
       },
       "controls": {
-        "title": "Steuerung über (optional)",
-        "description": "Wähle für jede Quelle bei Bedarf das Gerät, das Wiedergabe und Lautstärke steuert. Die Felder sind mit der jeweiligen Entity-ID beschriftet. Leer = die Quelle selbst.\n\nQuellen in Prioritätsreihenfolge:\n{sources}"
+        "title": "Einstellungen je Quelle",
+        "description": "Jedes Feld nennt die zugehörige Quelle mit Name und Entity-ID. Steuerung über: leer = Quelle selbst. Anzeigedauer: 5–600 Sekunden, leer = globales Wechselintervall. Beide Werte wandern beim Umsortieren mit der Quelle.\n\nQuellen in Prioritätsreihenfolge:\n{sources}",
+        "data": {
+          "control": "Steuerung über (optional)",
+          "display_seconds": "Anzeigedauer (Sekunden)"
+        }
       }
     },
     "error": {
@@ -35,24 +41,30 @@
     "step": {
       "init": {
         "title": "Kombinierten Media Player bearbeiten",
-        "description": "Reihenfolge per Ziehen ändern. Oben = höchste Priorität. Im nächsten Schritt kannst du jeder Quelle ein Steuergerät zuordnen.",
+        "description": "Reihenfolge per Ziehen ändern. Oben = höchste Priorität. Im nächsten Schritt kannst du je Quelle Steuerziel und Anzeigedauer festlegen.",
         "data": {
           "name": "Name",
-          "show_secondary": "Nebenquelle einblenden",
           "hide_radio_station": "Sendername bei Radio ausblenden",
           "hold_seconds": "Haltezeit (Sekunden)",
-          "sources": "Quellen"
+          "sources": "Quellen",
+          "rotation_seconds": "Wechselintervall (Sekunden)",
+          "show_other_sources": "Weitere Quellen in zweiter Zeile anzeigen"
         },
         "data_description": {
-          "show_secondary": "Blendet die erste weitere spielende Quelle unten rechts im Media-Player-Cover ein. Die Cover-Bild-Entität bleibt ohne Einblendung.",
           "hide_radio_station": "Blendet den Sendernamen im Album-Feld aus, wenn die Inhalts-ID ://radio/ enthält. Andere Alben bleiben sichtbar.",
           "hold_seconds": "Hält die bisherige Anzeige bei kurzen Wiedergabelücken für 0–30 Sekunden. Eine höher priorisierte spielende Quelle gewinnt sofort. 0 schaltet die Haltezeit aus.",
-          "sources": "Wähle mindestens eine Quelle und ziehe die Einträge in die gewünschte Reihenfolge."
+          "sources": "Wähle mindestens eine Quelle und ziehe die Einträge in die gewünschte Reihenfolge.",
+          "rotation_seconds": "Anzeigedauer je Cover bei mehreren gleichzeitig laufenden Quellen: 5–600 Sekunden, Standard 30. Pro Quelle im nächsten Schritt überschreibbar.",
+          "show_other_sources": "Weitere Rotationsquellen im Albumfeld anzeigen. Titel, Interpret und Steuerung bleiben bei der Anzeigequelle."
         }
       },
       "controls": {
-        "title": "Steuerung über (optional)",
-        "description": "Wähle für jede Quelle bei Bedarf das Gerät, das Wiedergabe und Lautstärke steuert. Die Felder sind mit der jeweiligen Entity-ID beschriftet. Leer = die Quelle selbst.\n\nQuellen in Prioritätsreihenfolge:\n{sources}"
+        "title": "Einstellungen je Quelle",
+        "description": "Jedes Feld nennt die zugehörige Quelle mit Name und Entity-ID. Steuerung über: leer = Quelle selbst. Anzeigedauer: 5–600 Sekunden, leer = globales Wechselintervall. Beide Werte wandern beim Umsortieren mit der Quelle.\n\nQuellen in Prioritätsreihenfolge:\n{sources}",
+        "data": {
+          "control": "Steuerung über (optional)",
+          "display_seconds": "Anzeigedauer (Sekunden)"
+        }
       }
     },
     "error": {

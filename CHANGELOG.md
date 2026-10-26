@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.10.0 (2026-10-26)
+
+- Replace picture-in-picture with full-cover rotation on the combined media player; the dedicated cover image remains the display winner's pure cover.
+- Rotate playing/buffering sources in slot order, retaining the existing main-source hold behavior. Skip duplicate titles after trimming and casefolding; missing titles remain eligible.
+- Add a global switch interval (5–600 seconds, default 30) and optional source-bound display durations. Keep the shown source's remaining time when membership changes; cancel the timer below two sources and on removal.
+- Keep title, artist, media metadata and controls fixed to the existing display/control selection. Optionally list other rotation sources in the album field with music/game/video markers (enabled by default).
+- Add rotation_sources, shown_source and next_switch_at to the player, active-source sensor and redacted diagnostics. Retain secondary_source and other_active_sources.
+- Remove the compositor, composed-image LRU and show_secondary option. Config-entry 2.2 silently removes the obsolete option; missing per-source durations inherit the global value. Entity IDs and unique IDs are unchanged.
+- Keep validated source-image fetching and its main-cover fallback; update German/English setup text, documentation and focused unit tests.
+
+
 ## 1.9.0 (2026-10-25)
 - Replace fixed priority-slot fields with a two-step setup/options flow: a reorderable multi-entity source selector, followed by optional per-source control devices. Remove the eight-source form limit and keep controls attached to source IDs when reordering; duplicate sources keep their first occurrence.
 - Preserve the existing slots storage format, config-entry version and entity identities; no migration is required. Update German/English instructions and README.

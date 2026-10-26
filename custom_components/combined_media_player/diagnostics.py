@@ -6,11 +6,13 @@ from .const import (
     CONF_HIDE_RADIO_STATION,
     CONF_HOLD_SECONDS,
     CONF_NAME,
-    CONF_SHOW_SECONDARY,
+    CONF_ROTATION_SECONDS,
+    CONF_SHOW_OTHER_SOURCES,
     CONF_SLOTS,
     DEFAULT_HIDE_RADIO_STATION,
     DEFAULT_HOLD_SECONDS,
-    DEFAULT_SHOW_SECONDARY,
+    DEFAULT_ROTATION_SECONDS,
+    DEFAULT_SHOW_OTHER_SOURCES,
     DOMAIN,
     entry_option,
 )
@@ -39,20 +41,6 @@ async def async_get_config_entry_diagnostics(hass, entry) -> dict:
             {key: status.get(key) for key in ("status", "reason", "route", "at")}
             if status
             else None
-        )
-
-    composition = hass.data[DOMAIN].get("composition_status", {}).get(entry.entry_id)
-    last_composition = None
-    if composition:
-        last_composition = {
-            key: composition.get(key)
-            for key in ("status", "reason", "at", "fingerprint")
-        }
-        last_composition.update(
-            {
-                "primary": _entity(composition.get("primary")),
-                "secondary": _entity(composition.get("secondary")),
-            }
         )
 
     def state_info(entity_id):
@@ -106,11 +94,15 @@ async def async_get_config_entry_diagnostics(hass, entry) -> dict:
     options = {key: REDACTED for key in entry.options}
     options[CONF_NAME] = REDACTED
     options[CONF_SLOTS] = [
-        {"source": _entity(source), "control": _entity(control)}
-        for source, control in runtime.slots
+        {
+            "source": _entity(slot["source"]),
+            "control": _entity(slot.get("control")),
+            "display_seconds": _duration(slot.get("display_seconds")),
+        }
+        for slot in runtime.slot_settings
     ]
     for key, default in (
-        (CONF_SHOW_SECONDARY, DEFAULT_SHOW_SECONDARY),
+        (CONF_SHOW_OTHER_SOURCES, DEFAULT_SHOW_OTHER_SOURCES),
         (CONF_HIDE_RADIO_STATION, DEFAULT_HIDE_RADIO_STATION),
     ):
         value = entry_option(entry, key, default)
@@ -119,12 +111,19 @@ async def async_get_config_entry_diagnostics(hass, entry) -> dict:
     options[CONF_HOLD_SECONDS] = (
         hold if isinstance(hold, (int, float)) and 0 <= hold <= 30 else REDACTED
     )
+    options[CONF_ROTATION_SECONDS] = _duration(
+        entry_option(entry, CONF_ROTATION_SECONDS, DEFAULT_ROTATION_SECONDS)
+    )
     return {
         "options": options,
-        "last_composition": last_composition,
         "resolution": {
             "display_source": _entity(selection.display_source),
             "secondary_source": _entity(selection.secondary_source),
+            "rotation_sources": [
+                _entity(source) for source in runtime.rotation.sources
+            ],
+            "shown_source": _entity(runtime.rotation.shown_source),
+            "next_switch_at": runtime.next_switch_at,
             "control_target": _entity(selection.control_target),
             "other_active_sources": [
                 _entity(source) for source in selection.other_active_sources
@@ -141,7 +140,27 @@ async def async_get_config_entry_diagnostics(hass, entry) -> dict:
                 "control_state": state_info(control),
                 "last_fetch": last_fetch(source),
                 "control_last_fetch": last_fetch(control),
+                "display_seconds": _duration(
+                    next(
+                        slot
+                        for slot in runtime.slot_settings
+                        if slot["source"] == source
+                    ).get("display_seconds")
+                ),
             }
             for source, control in runtime.slots
         ],
     }
+
+
+def _duration(value):
+    return (
+        value
+        if value is None
+        or (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and 5 <= value <= 600
+        )
+        else REDACTED
+    )
