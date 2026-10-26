@@ -134,9 +134,9 @@ def test_overridden_duplicate_display_does_not_restart_timer_on_every_refresh():
 @pytest.mark.parametrize(
     "media_type,artist,expected",
     [
-        ("music", "Artist", "♪ Title – Artist"),
-        ("music", None, "♪ Title"),
-        ("music", "  ", "♪ Title"),
+        ("music", "Artist", "Title – Artist"),
+        ("music", None, "Title"),
+        ("music", "  ", "Title"),
         ("game", "Ignored", "🎮 Title"),
         ("video", None, "▶ Title"),
         ("tvshow", None, "▶ Title"),
@@ -159,7 +159,7 @@ def test_second_line_orders_all_other_entries_and_omits_main():
         "c": state("C", "video"),
     }
     assert (
-        rotation.other_sources_line(("a", "b", "c"), "a", states) == "♪ B – Band · ▶ C"
+        rotation.other_sources_line(("a", "b", "c"), "a", states) == "B – Band · ▶ C"
     )
     assert rotation.other_sources_line(("a",), "a", states) is None
 

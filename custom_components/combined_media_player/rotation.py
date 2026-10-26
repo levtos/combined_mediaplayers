@@ -70,7 +70,7 @@ def other_sources_line(
         content_type = attributes.get("media_content_type")
         if content_type == "music":
             artist = str(attributes.get("media_artist") or "").strip()
-            entries.append(f"♪ {title}" + (f" – {artist}" if artist else ""))
+            entries.append(title + (f" – {artist}" if artist else ""))
         else:
             entries.append(f"{'🎮' if content_type == 'game' else '▶'} {title}")
     return " · ".join(entries) or None
