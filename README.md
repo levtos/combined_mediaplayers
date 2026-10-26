@@ -9,8 +9,8 @@ A Home Assistant custom integration that merges multiple media players into a si
 - **Multiple sources** – reorderable `media_player` sources without a fixed form limit
 - **Priority order** – position 1 = highest priority, position N = lowest
 - **Activity detection** – playing/buffering sources beat paused; on/idle never provide media content
-- **Fixed media attributes** – title, artist, app name, series/season/episode and position come from the display winner
-- **Full-cover rotation** – alternate simultaneous sources without changing the title or controls; optional other-source details in the album field
+- **Matching cover and text** – title and artist follow the shown cover; the main winner retains app name, series/season/episode and position
+- **Full-cover rotation** – alternate simultaneous sources with matching title/artist; optional plain-text details about other sources in the album field
 - **Cover art image entity** – dedicated `image` entity for use in dashboards and automations
 - **Cached cover art** – HA's media proxy uses the existing validated image fetching and shared cache
 - **Per-slot controls** – forward commands and control attributes to the slot's optional control device, or its source
@@ -77,17 +77,17 @@ The cover image entity can retain the last good image during a brief gap for the
 
 The rotation set contains all playing/buffering sources in the **stored slot order**. During the existing main-source hold time, its last active snapshot also participates. Known titles are compared after trimming and casefolding: only the first occurrence remains, so mirrored game presence does not displace music. Missing/blank titles are not duplicates. Paused/on/idle sources do not join the rotation; a paused display winner still supplies the fixed cover when fewer than two rotation members exist.
 
-With at least two members, only the cover rotates, starting with the display winner, then continuing in slot order and wrapping to the first member. Each source stays for its optional `display_seconds` value (5–600 seconds), otherwise the global interval (default 30 seconds). A source or title update does not restart an ongoing duration. If membership changes and the shown source remains, its remaining time is preserved. If it disappears, the display winner is shown immediately with a fresh duration. Fewer than two members stop rotation immediately; no rotation timer remains. Timers are cancelled when the player is removed. Rotation is transient and starts afresh after reload/restart.
+With at least two members, cover, title and artist rotate together, starting with the display winner, then continuing in slot order and wrapping to the first member. Each source stays for its optional `display_seconds` value (5–600 seconds), otherwise the global interval (default 30 seconds). A source or title update does not restart an ongoing duration. If membership changes and the shown source remains, its remaining time is preserved. If it disappears, the display winner is shown immediately with a fresh duration. Fewer than two members stop rotation immediately; no rotation timer remains. Timers are cancelled when the player is removed. Rotation is transient and starts afresh after reload/restart.
 
 **Rotation is visible only when a client follows the media player's cover, for example `media_player.media`.** A card or client following the dedicated `image` entity continues to see the pure main cover. There is no inset, compositor or composed-image cache. The priority select still determines the fixed display/control winner; it does not rewrite the stored rotation order. If that winner is itself an excluded title duplicate, it is shown on reset before entering the deduplicated rotation.
 
-Title, artist, content type, duration/position, app and controls remain with the display winner and its control target. With **Show other sources in the second line** enabled, `media_album_name` lists the other rotation members in slot order, separated by ` · `:
+Since **1.11.0**, `media_title` and `media_artist` follow `shown_source`, using the same state as the rotating cover. A game cover therefore shows the game title; a music cover shows the song title with its artist in the artist field. These source attributes are never swapped. Content type, duration/position, app and controls retain the existing main-winner/control-target routing. With **Show other sources in the second line** enabled, `media_album_name` lists all rotation members except the **currently shown** source in slot order, separated by ` · `:
 
-- Music: `Title – Artist` (omit the artist separator when empty; no music-note prefix since 1.10.1).
-- Games: `🎮 Title`.
-- Other media, including video/movies/TV shows: `▶ Title`.
+- Music: `Artist – Title` (only `Title` when the artist is empty).
+- Games: `Title`.
+- Other media, including video/movies/TV shows: `Title`.
 
-Otherwise the original album behavior applies, including **Hide station name for radio**. A client such as Kiosk Satellite may render `media_artist · media_album_name` below the fixed title. `secondary_source` remains a compatibility attribute using its existing first-nonduplicate rule; `other_active_sources` remains complete, including duplicate sources. Neither controls the rotating image.
+No music, game or video symbols are added. For example, with a game and music running, the game cover/title has `Artist – Song` below it; when the music cover appears, its song title is on top and the artist plus the game title appear below (the exact separator/layout is up to the client). Otherwise the shown source's original album behavior applies, including **Hide station name for radio**. A client such as Kiosk Satellite may render `media_artist · media_album_name` below the title. `secondary_source` remains a compatibility attribute using its existing first-nonduplicate rule; `other_active_sources` remains complete, including duplicate sources. Neither controls the rotating image.
 
 ## Entities
 

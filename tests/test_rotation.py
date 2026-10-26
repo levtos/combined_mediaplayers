@@ -134,13 +134,13 @@ def test_overridden_duplicate_display_does_not_restart_timer_on_every_refresh():
 @pytest.mark.parametrize(
     "media_type,artist,expected",
     [
-        ("music", "Artist", "Title – Artist"),
+        ("music", "Artist", "Artist – Title"),
         ("music", None, "Title"),
         ("music", "  ", "Title"),
-        ("game", "Ignored", "🎮 Title"),
-        ("video", None, "▶ Title"),
-        ("tvshow", None, "▶ Title"),
-        ("movie", None, "▶ Title"),
+        ("game", "Ignored", "Title"),
+        ("video", None, "Title"),
+        ("tvshow", None, "Title"),
+        ("movie", None, "Title"),
     ],
 )
 def test_second_line_format(media_type, artist, expected):
@@ -158,10 +158,45 @@ def test_second_line_orders_all_other_entries_and_omits_main():
         "b": state("B", "music", "Band"),
         "c": state("C", "video"),
     }
-    assert (
-        rotation.other_sources_line(("a", "b", "c"), "a", states) == "B – Band · ▶ C"
-    )
+    assert rotation.other_sources_line(("a", "b", "c"), "a", states) == "Band – B · C"
     assert rotation.other_sources_line(("a",), "a", states) is None
+
+
+def test_title_artist_and_other_line_follow_the_cover_cycle_without_swapping():
+    states = {
+        "game": state("Example Game", "game"),
+        "music": state("Example Song", "music", "Example Artist"),
+    }
+    current = rotation.advance_rotation(
+        rotation.Rotation(), ("game", "music"), "game", 0, 30, {}
+    )
+    for now, source, title, artist, other_line in [
+        (0, "game", "Example Game", None, "Example Artist – Example Song"),
+        (30, "music", "Example Song", "Example Artist", "Example Game"),
+        (60, "game", "Example Game", None, "Example Artist – Example Song"),
+    ]:
+        current = rotation.advance_rotation(
+            current, current.sources, "game", now, 30, {}
+        )
+        shown = rotation.shown_source_state(
+            current.shown_source, "game", states["game"], states
+        )
+        assert current.shown_source == source
+        assert shown.attributes["media_title"] == title
+        assert shown.attributes["media_artist"] == artist
+        assert (
+            rotation.other_sources_line(current.sources, source, states) == other_line
+        )
+
+
+def test_shown_state_preserves_held_snapshot_and_handles_one_or_missing_source():
+    held = state("Retained Game", "game")
+    idle = state(status="idle")
+    assert rotation.shown_source_state("game", "game", held, {"game": idle}) is held
+    assert rotation.shown_source_state(None, "game", held, {}) is held
+    assert rotation.shown_source_state("missing", "game", held, {}) is held
+    assert rotation.shown_source_state(None, None, None, {}) is None
+    assert rotation.other_sources_line(("game",), "game", {"game": held}) is None
 
 
 def test_durations_and_controls_follow_sources_after_reordering_and_clear():

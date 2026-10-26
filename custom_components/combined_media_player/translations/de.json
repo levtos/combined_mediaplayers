@@ -17,7 +17,7 @@
           "hold_seconds": "Hält die bisherige Anzeige bei kurzen Wiedergabelücken für 0–30 Sekunden. Eine höher priorisierte spielende Quelle gewinnt sofort. 0 schaltet die Haltezeit aus.",
           "sources": "Wähle mindestens eine Quelle und ziehe die Einträge in die gewünschte Reihenfolge.",
           "rotation_seconds": "Anzeigedauer je Cover bei mehreren gleichzeitig laufenden Quellen: 5–600 Sekunden, Standard 30. Pro Quelle im nächsten Schritt überschreibbar.",
-          "show_other_sources": "Weitere Rotationsquellen im Albumfeld anzeigen. Titel, Interpret und Steuerung bleiben bei der Anzeigequelle."
+          "show_other_sources": "Weitere Rotationsquellen als Text im Albumfeld anzeigen; Musik als Interpret – Titel, Spiele/Videos nur als Titel. Titel und Interpret wechseln mit dem Cover. Die Steuerung bleibt bei der Hauptquelle."
         }
       },
       "controls": {
@@ -55,7 +55,7 @@
           "hold_seconds": "Hält die bisherige Anzeige bei kurzen Wiedergabelücken für 0–30 Sekunden. Eine höher priorisierte spielende Quelle gewinnt sofort. 0 schaltet die Haltezeit aus.",
           "sources": "Wähle mindestens eine Quelle und ziehe die Einträge in die gewünschte Reihenfolge.",
           "rotation_seconds": "Anzeigedauer je Cover bei mehreren gleichzeitig laufenden Quellen: 5–600 Sekunden, Standard 30. Pro Quelle im nächsten Schritt überschreibbar.",
-          "show_other_sources": "Weitere Rotationsquellen im Albumfeld anzeigen. Titel, Interpret und Steuerung bleiben bei der Anzeigequelle."
+          "show_other_sources": "Weitere Rotationsquellen als Text im Albumfeld anzeigen; Musik als Interpret – Titel, Spiele/Videos nur als Titel. Titel und Interpret wechseln mit dem Cover. Die Steuerung bleibt bei der Hauptquelle."
         }
       },
       "controls": {

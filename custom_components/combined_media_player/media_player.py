@@ -29,7 +29,7 @@ from .const import (
 )
 from .image import async_fetch_source_image
 from .resolver import Resolution, is_radio
-from .rotation import other_sources_line
+from .rotation import other_sources_line, shown_source_state
 
 
 async def async_setup_entry(
@@ -167,20 +167,25 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         ctrl = self._control_state()
         return ctrl.attributes.get(key, default) if ctrl else default
 
+    def _from_shown(self, key: str, default: Any = None) -> Any:
+        shown = self._shown_state()
+        return shown.attributes.get(key, default) if shown else default
+
     @property
     def media_title(self) -> str | None:
-        return self._from_active("media_title")
+        return self._from_shown("media_title")
 
     @property
     def media_artist(self) -> str | None:
-        return self._from_active("media_artist")
+        return self._from_shown("media_artist")
 
     @property
     def media_album_name(self) -> str | None:
+        shown = self._shown_state()
         if self._show_other_sources:
             line = other_sources_line(
                 self._runtime.rotation.sources,
-                self._active_entity_id(),
+                shown.entity_id if shown else None,
                 {
                     source: self.hass.states.get(source)
                     for source in self._runtime.rotation.sources
@@ -188,9 +193,9 @@ class CombinedMediaPlayer(MediaPlayerEntity):
             )
             if line:
                 return line
-        if self._hide_radio and is_radio(self._from_active("media_content_id")):
+        if self._hide_radio and is_radio(self._from_shown("media_content_id")):
             return None
-        return self._from_active("media_album_name")
+        return self._from_shown("media_album_name")
 
     @property
     def media_content_type(self) -> str | None:
@@ -276,12 +281,11 @@ class CombinedMediaPlayer(MediaPlayerEntity):
 
     def _shown_state(self) -> State | None:
         source = self._runtime.rotation.shown_source
-        return (
-            self._active_state()
-            if source == self._active_entity_id()
-            else self.hass.states.get(source)
-            if source
-            else None
+        return shown_source_state(
+            source,
+            self._active_entity_id(),
+            self._active_state(),
+            {source: self.hass.states.get(source)} if source else {},
         )
 
     @property
