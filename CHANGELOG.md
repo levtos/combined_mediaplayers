@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.11.0 (2026-10-26)
+
+- Rotate the combined player's title and artist with its shown cover; read both original source attributes without swapping them. Keep the existing main-source selection, control target and other media metadata routing.
+- Make the optional second line plain text for every media type. Format music as Artist – Title (or Title without an artist), and games/videos as Title; retain source order and the middle-dot separator.
+- List other sources relative to the currently shown cover. When no other-source line is shown, use that cover source's original album and radio-station filtering.
+- Preserve rotation durations, hold behavior, priority selection, validated image fetching, the pure main-cover image entity and entity identities. No new options or migration.
+- Update focused source/text-cycle tests, German/English option descriptions and README.
+
 ## 1.10.1 (2026-10-26)
 
 - Remove the fixed music-note prefix from music entries in the second line: show Title – Artist, or only Title when the artist is empty. Game/video markers and cover rotation remain unchanged.

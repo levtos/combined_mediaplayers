@@ -17,7 +17,7 @@
           "hold_seconds": "Keep the previous display during brief playback gaps for 0–30 seconds. A higher-priority playing source wins immediately. Set 0 to disable.",
           "sources": "Select at least one source and drag the entries into the desired order.",
           "rotation_seconds": "Cover duration with multiple playing sources: 5–600 seconds, default 30. Override per source in the next step.",
-          "show_other_sources": "List other rotation sources in the album field. Title, artist and controls stay with the display source."
+          "show_other_sources": "List other rotation sources as text in the album field: music as Artist – Title, games/videos as Title. Title and artist follow the cover; controls stay with the main source."
         }
       },
       "controls": {
@@ -55,7 +55,7 @@
           "hold_seconds": "Keep the previous display during brief playback gaps for 0–30 seconds. A higher-priority playing source wins immediately. Set 0 to disable.",
           "sources": "Select at least one source and drag the entries into the desired order.",
           "rotation_seconds": "Cover duration with multiple playing sources: 5–600 seconds, default 30. Override per source in the next step.",
-          "show_other_sources": "List other rotation sources in the album field. Title, artist and controls stay with the display source."
+          "show_other_sources": "List other rotation sources as text in the album field: music as Artist – Title, games/videos as Title. Title and artist follow the cover; controls stay with the main source."
         }
       },
       "controls": {

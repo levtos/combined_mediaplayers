@@ -57,20 +57,32 @@ def advance_rotation(
 
 
 def other_sources_line(
-    sources: Sequence[str], display_source: str | None, states: Mapping[str, Any]
+    sources: Sequence[str], shown_source: str | None, states: Mapping[str, Any]
 ) -> str | None:
-    """Format other rotation members without altering the winner's media fields."""
+    """Plain text for other rotation members, with artist before music title."""
     entries = []
     for source in sources:
         state = states.get(source)
-        if source == display_source or state is None:
+        if source == shown_source or state is None:
             continue
         attributes = state.attributes or {}
         title = str(attributes.get("media_title") or "").strip()
         content_type = attributes.get("media_content_type")
         if content_type == "music":
             artist = str(attributes.get("media_artist") or "").strip()
-            entries.append(title + (f" – {artist}" if artist else ""))
+            entries.append(f"{artist} – {title}" if artist else title)
         else:
-            entries.append(f"{'🎮' if content_type == 'game' else '▶'} {title}")
+            entries.append(title)
     return " · ".join(entries) or None
+
+
+def shown_source_state(
+    shown_source: str | None,
+    display_source: str | None,
+    display_state: Any,
+    states: Mapping[str, Any],
+) -> Any:
+    """Use one state for cover and text, preserving the held main snapshot."""
+    if not shown_source or shown_source == display_source:
+        return display_state
+    return states.get(shown_source) or display_state
