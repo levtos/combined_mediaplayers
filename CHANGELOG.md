@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.10.1 (2026-10-26)
+
+- Remove the fixed music-note prefix from music entries in the second line: show Title – Artist, or only Title when the artist is empty. Game/video markers and cover rotation remain unchanged.
+- Update the existing formatting tests and README; no option, migration or entity identity changes.
+
 ## 1.10.0 (2026-10-26)
 
 - Replace picture-in-picture with full-cover rotation on the combined media player; the dedicated cover image remains the display winner's pure cover.

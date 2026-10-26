@@ -83,7 +83,7 @@ With at least two members, only the cover rotates, starting with the display win
 
 Title, artist, content type, duration/position, app and controls remain with the display winner and its control target. With **Show other sources in the second line** enabled, `media_album_name` lists the other rotation members in slot order, separated by ` · `:
 
-- Music: `♪ Title – Artist` (omit the artist separator when empty).
+- Music: `Title – Artist` (omit the artist separator when empty; no music-note prefix since 1.10.1).
 - Games: `🎮 Title`.
 - Other media, including video/movies/TV shows: `▶ Title`.
 
