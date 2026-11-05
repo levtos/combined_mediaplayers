@@ -1,6 +1,7 @@
 """HA-independent image checks and the validated cache/fetch fallback chain."""
 
 from io import BytesIO
+import warnings
 
 
 def image_error(data: bytes, content_type: str | None) -> str | None:
@@ -14,8 +15,20 @@ def image_error(data: bytes, content_type: str | None) -> str | None:
     try:
         from PIL import Image
 
-        with Image.open(BytesIO(data)) as image:
-            image.verify()
+        with warnings.catch_warnings():
+            # Broken optional metadata can coexist with fully decodable pixels.
+            # Suppress only Pillow's EXIF warning within this validation call.
+            warnings.filterwarnings(
+                "ignore",
+                message=r"^(?:Possibly )?[Cc]orrupt EXIF data[.\s]",
+                category=UserWarning,
+                module=r"PIL\.TiffImagePlugin",
+            )
+            with Image.open(BytesIO(data)) as image:
+                image.verify()
+            # verify() does not decode every format's pixels (notably JPEG).
+            with Image.open(BytesIO(data)) as image:
+                image.load()
     except Exception as error:
         return type(error).__name__
     return None

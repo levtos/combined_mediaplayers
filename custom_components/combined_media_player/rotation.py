@@ -10,6 +10,68 @@ class Rotation(NamedTuple):
     next_switch_at: float | None = None
 
 
+class TitleSwitch(NamedTuple):
+    source: str | None = None
+    at: float | None = None
+
+
+def media_title_with_series(attributes: Mapping[str, Any]) -> str | None:
+    """Format the actual title with series context, never artist/album surrogates."""
+    title = attributes.get("media_title")
+    series = attributes.get("media_series_title")
+    if not isinstance(title, str) or not title.strip():
+        return title
+    if not isinstance(series, str) or not series.strip():
+        return title
+    title, series = title.strip(), series.strip()
+    if title.casefold() == series.casefold():
+        return title
+    for separator in (" – ", " - ", " — ", ": "):
+        prefix, found, episode = title.partition(separator)
+        if found and prefix.strip().casefold() == series.casefold():
+            title = episode.strip()
+            break
+    if not title:
+        return series
+    for separator in (" – ", " - ", " — "):
+        suffix = separator + series
+        if title.casefold().endswith(suffix.casefold()):
+            return title
+    return f"{title} – {series}"
+
+
+def active_titles(sources: Sequence[str], states: Mapping[str, Any]) -> dict:
+    """Observe actual active sources, excluding held snapshots and controls."""
+    return {
+        source: (state.attributes or {}).get("media_title")
+        for source in sources
+        if (state := states.get(source)) is not None
+        and state.state in {"playing", "buffering"}
+    }
+
+
+def title_switch_after_change(
+    pending: TitleSwitch,
+    previous_titles: Mapping,
+    titles: Mapping,
+    sources: Sequence[str],
+    now: float,
+) -> TitleSwitch:
+    """Latest title event wins; simultaneous changes use slot priority."""
+    for source in sources:
+        title = titles.get(source)
+        if (
+            isinstance(title, str)
+            and title.strip()
+            and source in previous_titles
+            and title != previous_titles[source]
+        ):
+            return TitleSwitch(source, now + 2)
+    if pending.source not in sources or pending.source not in titles:
+        return TitleSwitch()
+    return pending
+
+
 def rotation_sources(
     sources: Sequence[str], states: Mapping[str, Any]
 ) -> tuple[str, ...]:
@@ -36,11 +98,21 @@ def advance_rotation(
     now: float,
     global_seconds: float,
     durations: Mapping[str, float | None],
+    title_switch: TitleSwitch = TitleSwitch(),
 ) -> Rotation:
     """Preserve a surviving source's deadline, including on membership changes."""
     if len(sources) < 2:
         return Rotation(sources, display_source)
     shown, deadline = previous.shown_source, previous.next_switch_at
+    if title_switch.source in sources and title_switch.at is not None:
+        if now >= title_switch.at:
+            source = title_switch.source
+            return Rotation(
+                sources, source, now + (durations.get(source) or global_seconds)
+            )
+        if shown in sources and deadline is not None:
+            # Wait the full two seconds even if the normal interval expires first.
+            return Rotation(sources, shown, deadline)
     # The display winner may be a title duplicate selected by the priority select.
     # It is still shown immediately on a reset; the next tick enters slot order.
     if deadline is None or (
