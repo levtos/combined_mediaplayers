@@ -61,3 +61,20 @@ async def fetch_validated_image(cache, key, fetchers, executor, is_current, repo
             await cache.put(key, *image)
         return image if is_current() else None
     return None
+
+
+async def audit_cached_images(index, generations, read, discard, executor, now, ttl):
+    """Audit old entries without blocking requests or deleting newer writes."""
+    for key, metadata in list(index.items()):
+        generation = generations.get(key, 0)
+        if now - metadata.get("last_used", 0) > ttl:
+            reason = "expired"
+        else:
+            data = await read(key)
+            reason = await executor(image_error, data, metadata.get("content_type"))
+        if (
+            reason is not None
+            and index.get(key) is metadata
+            and generations.get(key, 0) == generation
+        ):
+            discard(key)

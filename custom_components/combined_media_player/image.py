@@ -26,7 +26,7 @@ from homeassistant.helpers.network import get_url as ha_get_url
 from homeassistant.util import dt as dt_util, slugify
 
 from .const import DOMAIN
-from .image_validation import fetch_validated_image, image_error
+from .image_validation import audit_cached_images, fetch_validated_image, image_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,6 +79,7 @@ def _write_json(path: Path, data: dict) -> bool:
 
 
 def _setup_cache_dir(cache_dir: Path, index_path: Path) -> dict:
+    """Load only index metadata here; audit image bytes in the background."""
     cache_dir.mkdir(parents=True, exist_ok=True)
     index = {}
     if index_path.exists():
@@ -93,10 +94,11 @@ def _setup_cache_dir(cache_dir: Path, index_path: Path) -> dict:
         if not re.fullmatch(r"[0-9a-f]{32}", key):
             continue
         path = cache_dir / f"{key}.bin"
-        data = _read_file(path)
         if (
             isinstance(metadata, dict)
-            and image_error(data, metadata.get("content_type")) is None
+            and isinstance(metadata.get("content_type"), str)
+            and metadata["content_type"].lower().startswith("image/")
+            and isinstance(metadata.get("last_used"), (int, float))
         ):
             valid[key] = metadata
         else:
@@ -137,13 +139,15 @@ class _CoverCache:
         self._index_path: Path | None = None
         self._dirty = False
         self._cleanup_unsub: Any = None
+        self._audit_task: asyncio.Task | None = None
+        self._disk_generations: dict[str, int] = {}
 
     # ------------------------------------------------------------------
     # Initialization / teardown
     # ------------------------------------------------------------------
 
     async def async_setup(self) -> None:
-        """Create cache directory, load index, prune expired entries."""
+        """Load the index promptly; validate old image files off the setup path."""
         cache_dir = Path(self._hass.config.path(".storage", _CACHE_DIR_NAME))
         index_path = cache_dir / "index.json"
         self._cache_dir = cache_dir
@@ -152,8 +156,6 @@ class _CoverCache:
         self._disk_index = await self._hass.async_add_executor_job(
             _setup_cache_dir, cache_dir, index_path
         )
-        await self._prune_expired()
-
         # Schedule daily cleanup
         self._cleanup_unsub = async_track_time_interval(
             self._hass,
@@ -166,6 +168,9 @@ class _CoverCache:
             EVENT_HOMEASSISTANT_STOP,
             self._on_ha_stop,
         )
+        self._audit_task = self._hass.async_create_background_task(
+            self._async_audit_disk(), "CMP cached image audit"
+        )
 
         _LOGGER.debug("Cover cache ready (%d disk entries)", len(self._disk_index))
 
@@ -173,7 +178,30 @@ class _CoverCache:
         if self._cleanup_unsub is not None:
             self._cleanup_unsub()
             self._cleanup_unsub = None
+        if self._audit_task is not None:
+            self._audit_task.cancel()
+            await asyncio.gather(self._audit_task, return_exceptions=True)
+            self._audit_task = None
         await self._flush_index()
+
+    async def _async_audit_disk(self) -> None:
+        async def read(key):
+            return await self._hass.async_add_executor_job(
+                _read_file, self._cache_dir / f"{key}.bin"
+            )
+
+        try:
+            await audit_cached_images(
+                self._disk_index,
+                self._disk_generations,
+                read,
+                self._evict_disk,
+                self._hass.async_add_executor_job,
+                time.time(),
+                _CACHE_TTL_SECONDS,
+            )
+        except Exception as error:
+            _LOGGER.warning("Cover cache audit failed (%s)", type(error).__name__)
 
     # ------------------------------------------------------------------
     # Key helpers
@@ -260,6 +288,9 @@ class _CoverCache:
             return
 
         h = self._hash(key)
+        # Mark the write before yielding to disk I/O: an audit of the old file
+        # must never remove bytes that this writer is about to replace.
+        self._disk_generations[h] = self._disk_generations.get(h, 0) + 1
         ok = await self._hass.async_add_executor_job(
             _write_file, self._cache_dir / f"{h}.bin", data
         )
@@ -283,7 +314,7 @@ class _CoverCache:
         await self._flush_index()
 
     async def _on_ha_stop(self, _event: Any) -> None:
-        await self._flush_index()
+        await self.async_teardown()
 
     async def _prune_expired(self) -> None:
         if self._cache_dir is None:
@@ -313,6 +344,7 @@ class _CoverCache:
             self._dirty = False
 
     def _evict_disk(self, h: str) -> None:
+        self._disk_generations[h] = self._disk_generations.get(h, 0) + 1
         self._disk_index.pop(h, None)
         self._dirty = True
         if self._cache_dir:
@@ -342,6 +374,23 @@ async def async_get_cover_cache(hass: HomeAssistant) -> _CoverCache:
             await cache.async_setup()
             data[_HASS_DATA_CACHE_KEY] = cache
         return data[_HASS_DATA_CACHE_KEY]
+
+
+async def _async_prepare_cover_cache(hass: HomeAssistant) -> None:
+    try:
+        await async_get_cover_cache(hass)
+    except Exception as error:
+        _LOGGER.warning("Cover cache preparation failed (%s)", type(error).__name__)
+
+
+@callback
+def async_prepare_cover_cache(hass: HomeAssistant) -> None:
+    """Warm the shared cache without delaying image entity/platform setup."""
+    data = hass.data.setdefault(DOMAIN, {})
+    if "cover_cache_preparation" not in data:
+        data["cover_cache_preparation"] = hass.async_create_background_task(
+            _async_prepare_cover_cache(hass), "CMP cover cache preparation"
+        )
 
 
 def _record_fetch_status(
@@ -536,10 +585,10 @@ class CombinedCoverImage(ImageEntity):
         self._attr_image_last_updated = dt_util.utcnow()
         self._refresh_image_url()
 
-        await async_get_cover_cache(self.hass)
         self._unsub = self.hass.data[DOMAIN][self._entry.entry_id].subscribe(
             self._handle_state_change
         )
+        async_prepare_cover_cache(self.hass)
 
     async def async_will_remove_from_hass(self) -> None:
         if self._unsub is not None:

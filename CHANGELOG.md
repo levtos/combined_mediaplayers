@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.11.2 (2026-11-05)
+
+- Stop awaiting the shared cover cache during image entity setup. Warm it as a background task and load only index metadata on the request path.
+- Audit existing image files in the background instead of verifying/decoding the entire disk cache before platform setup and current cover requests can proceed. Keep validation before every cache use and preserve invalid/expired-entry eviction.
+- Guard background eviction against replaced metadata and in-progress disk writes; cancel the audit on HA shutdown. Keep source-image authentication, fetch order, last-known-good fallback, resolver/rotation and entity identities unchanged.
+- Add focused background-audit/concurrent-fetch regression tests and document the startup behavior. External image-server HTTP failures remain provider failures; no log suppression or new dependencies.
+
 ## 1.11.1 (2026-11-05)
 
 - Show episodic titles as Title – Series using the source's explicit series metadata, reordering a known series prefix and avoiding duplicate suffixes. Keep the real series name in media_series_title for the shown source; do not repurpose artist/album or guess unknown title structure.
