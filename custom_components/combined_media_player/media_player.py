@@ -29,7 +29,7 @@ from .const import (
 )
 from .image import async_fetch_source_image
 from .resolver import Resolution, is_radio
-from .rotation import other_sources_line, shown_source_state
+from .rotation import media_title_with_series, other_sources_line, shown_source_state
 
 
 async def async_setup_entry(
@@ -173,7 +173,8 @@ class CombinedMediaPlayer(MediaPlayerEntity):
 
     @property
     def media_title(self) -> str | None:
-        return self._from_shown("media_title")
+        shown = self._shown_state()
+        return media_title_with_series(shown.attributes) if shown else None
 
     @property
     def media_artist(self) -> str | None:
@@ -215,7 +216,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
 
     @property
     def media_series_title(self) -> str | None:
-        return self._from_active("media_series_title")
+        return self._from_shown("media_series_title")
 
     @property
     def media_season(self) -> str | None:

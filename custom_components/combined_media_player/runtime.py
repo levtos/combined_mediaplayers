@@ -23,7 +23,14 @@ from .const import (
     tracked_entities,
 )
 from .resolver import Resolution, priority_slots, resolve_with_hold
-from .rotation import Rotation, advance_rotation, rotation_sources
+from .rotation import (
+    Rotation,
+    TitleSwitch,
+    active_titles,
+    advance_rotation,
+    rotation_sources,
+    title_switch_after_change,
+)
 
 
 class EntryRuntime:
@@ -32,6 +39,9 @@ class EntryRuntime:
         self.slots = slots_from_entry(entry)
         self.slot_settings = slot_settings_from_entry(entry)
         self.rotation = Rotation()
+        self._titles: dict = {}
+        self._title_switch = TitleSwitch()
+        self._rotation_due: float | None = None
         self.next_switch_at: str | None = None
         self.rotation_seconds = float(
             entry_option(entry, CONF_ROTATION_SECONDS, DEFAULT_ROTATION_SECONDS)
@@ -127,6 +137,9 @@ class EntryRuntime:
             self._rotation_cancel()
             self._rotation_cancel = None
         self.rotation = self.rotation._replace(next_switch_at=None)
+        self._title_switch = TitleSwitch()
+        self._titles.clear()
+        self._rotation_due = None
         self.next_switch_at = None
 
     @callback
@@ -138,7 +151,12 @@ class EntryRuntime:
             [source for source, _ in self.slots], effective_states
         )
         now = time.monotonic()
-        previous_deadline = self.rotation.next_switch_at
+        titles = active_titles([source for source, _ in self.slots], states)
+        self._title_switch = title_switch_after_change(
+            self._title_switch, self._titles, titles, sources, now
+        )
+        self._titles = titles
+        previous_deadline = self._rotation_due
         self.rotation = advance_rotation(
             self.rotation,
             sources,
@@ -146,11 +164,23 @@ class EntryRuntime:
             now,
             self.rotation_seconds,
             self._durations,
+            self._title_switch,
         )
+        if (
+            len(sources) < 2
+            or self._title_switch.at is not None
+            and now >= self._title_switch.at
+        ):
+            self._title_switch = TitleSwitch()
         if self._rotation_cancel:
             self._rotation_cancel()
             self._rotation_cancel = None
-        deadline = self.rotation.next_switch_at if self._rotation_enabled else None
+        deadline = (
+            (self._title_switch.at or self.rotation.next_switch_at)
+            if self._rotation_enabled
+            else None
+        )
+        self._rotation_due = deadline
         if deadline is None:
             self.rotation = self.rotation._replace(next_switch_at=None)
             self.next_switch_at = None

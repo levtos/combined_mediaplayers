@@ -217,3 +217,148 @@ def test_durations_and_controls_follow_sources_after_reordering_and_clear():
     assert _SLOTS.make_slots(["a"], {}, {"a": None}) == [
         {"source": "a", "control": None}
     ]
+
+
+@pytest.mark.parametrize("duration", [None, 7, 600])
+def test_changed_title_switches_after_two_seconds_then_gets_full_interval(duration):
+    sources = ("game", "music")
+    previous = rotation.Rotation(sources, "game", 50)
+    old = {"game": "Game", "music": "Old Song"}
+    new = {"game": "Game", "music": "New Song"}
+    pending = rotation.title_switch_after_change(
+        rotation.TitleSwitch(), old, new, sources, 10
+    )
+    assert pending == ("music", 12)
+    before = rotation.advance_rotation(
+        previous, sources, "game", 11.9, 30, {"music": duration}, pending
+    )
+    assert before.shown_source == "game" and before.next_switch_at == 50
+    shown = rotation.advance_rotation(
+        before, sources, "game", 12, 30, {"music": duration}, pending
+    )
+    assert shown == (sources, "music", 12 + (duration or 30))
+
+
+def test_unchanged_titles_do_not_reset_pending_or_regular_deadlines():
+    sources = ("a", "b")
+    titles = {"a": "A", "b": "B"}
+    empty = rotation.title_switch_after_change(
+        rotation.TitleSwitch(), titles, titles, sources, 10
+    )
+    assert empty == (None, None)
+    current = rotation.Rotation(sources, "a", 30)
+    assert (
+        rotation.advance_rotation(current, sources, "a", 10, 30, {}, empty) == current
+    )
+    pending = rotation.TitleSwitch("b", 12)
+    assert (
+        rotation.title_switch_after_change(pending, titles, titles, sources, 11)
+        == pending
+    )
+    # The next unchanged update after a focus switch retains its full deadline.
+    focused = rotation.advance_rotation(current, sources, "a", 12, 30, {}, pending)
+    assert (
+        rotation.advance_rotation(focused, sources, "a", 13, 30, {}, empty) == focused
+    )
+
+
+def test_newer_title_replaces_pending_event_and_normal_tick_waits_for_focus():
+    sources = ("a", "b")
+    pending = rotation.TitleSwitch("b", 12)
+    replacement = rotation.title_switch_after_change(
+        pending, {"a": "A", "b": "B"}, {"a": "A", "b": "C"}, sources, 11
+    )
+    assert replacement == ("b", 13)
+    current = rotation.Rotation(sources, "a", 11.5)
+    assert (
+        rotation.advance_rotation(current, sources, "a", 12, 30, {}, replacement)
+        == current
+    )
+    assert rotation.advance_rotation(
+        current, sources, "a", 13, 30, {}, replacement
+    ) == (sources, "b", 43)
+
+
+def test_title_change_on_already_shown_source_restarts_full_interval_after_delay():
+    sources = ("a", "b")
+    current = rotation.Rotation(sources, "b", 15)
+    pending = rotation.TitleSwitch("b", 12)
+    assert (
+        rotation.advance_rotation(current, sources, "a", 11, 30, {}, pending) == current
+    )
+    assert rotation.advance_rotation(current, sources, "a", 12, 30, {}, pending) == (
+        sources,
+        "b",
+        42,
+    )
+
+
+def test_inactive_removed_or_duplicate_sources_cancel_pending_focus():
+    for sources, titles in [
+        (("a",), {"a": "A"}),
+        (("a", "b"), {"a": "A"}),
+        (("a", "c"), {"a": "A", "b": "B", "c": "C"}),
+    ]:
+        assert rotation.title_switch_after_change(
+            rotation.TitleSwitch("b", 12), titles, titles, sources, 11
+        ) == (None, None)
+    assert rotation.advance_rotation(
+        rotation.Rotation(("a", "b"), "a", 30),
+        ("a",),
+        "a",
+        12,
+        30,
+        {},
+        rotation.TitleSwitch("b", 12),
+    ) == (("a",), "a", None)
+
+
+def test_initial_snapshot_and_other_attributes_do_not_count_as_title_change():
+    sources = ("a", "b")
+    states = {
+        "a": state("A"),
+        "b": state("B", artist="First Artist"),
+        "idle": state("Placeholder", status="idle"),
+        "control": state("Control"),
+    }
+    titles = rotation.active_titles(sources + ("idle",), states)
+    assert titles == {"a": "A", "b": "B"}
+    assert rotation.title_switch_after_change(
+        rotation.TitleSwitch(), {}, titles, sources, 10
+    ) == (None, None)
+    states["b"] = state("B", artist="New Artist")
+    assert rotation.title_switch_after_change(
+        rotation.TitleSwitch(),
+        titles,
+        rotation.active_titles(sources, states),
+        sources,
+        11,
+    ) == (None, None)
+
+
+@pytest.mark.parametrize(
+    "title,series,expected",
+    [
+        ("Episode", "Series", "Episode – Series"),
+        ("Series – Episode", "Series", "Episode – Series"),
+        ("Series - Episode", "Series", "Episode – Series"),
+        ("series: Episode", "Series", "Episode – Series"),
+        ("STRASSE – Episode", "Straße", "Episode – Straße"),
+        ("Episode – Series", "Series", "Episode – Series"),
+        ("Series", "Series", "Series"),
+        ("Song - Remix", None, "Song - Remix"),
+        (None, "Series", None),
+    ],
+)
+def test_series_display_orders_title_before_series_without_repurposing_fields(
+    title, series, expected
+):
+    attributes = {
+        "media_title": title,
+        "media_series_title": series,
+        "media_artist": "Actual Artist",
+        "media_album_name": "Actual Album",
+    }
+    original = dict(attributes)
+    assert rotation.media_title_with_series(attributes) == expected
+    assert attributes == original

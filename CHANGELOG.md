@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.11.1 (2026-11-05)
+
+- Show episodic titles as Title – Series using the source's explicit series metadata, reordering a known series prefix and avoiding duplicate suffixes. Keep the real series name in media_series_title for the shown source; do not repurpose artist/album or guess unknown title structure.
+- Focus an active source two seconds after its media_title changes, then restart its full global/per-source display interval. Unchanged titles and unrelated attribute updates retain deadlines; initial snapshots do not trigger focus. Cancel focus when the source leaves the active rotation.
+- Accept decodable pictures with corrupt optional EXIF metadata without repeating Pillow's specific EXIF warning. Scope the warning filter to validation, preserve other warnings, and verify pixel decoding as well as file structure so truncated/corrupt pixels remain rejected.
+- Add focused synthetic regressions and update README. Preserve source/control priority, hold behavior, image-fetch fallback, options and entity identities; no dependencies or migration added.
+
 ## 1.11.0 (2026-10-26)
 
 - Rotate the combined player's title and artist with its shown cover; read both original source attributes without swapping them. Keep the existing main-source selection, control target and other media metadata routing.

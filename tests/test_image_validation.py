@@ -4,6 +4,7 @@ import asyncio
 import importlib.util
 from io import BytesIO
 from pathlib import Path
+import warnings
 
 from PIL import Image
 import pytest
@@ -151,3 +152,49 @@ def test_invalid_cached_image_is_removed_before_fallback():
 def test_good_bytes_with_non_image_content_type_are_not_accepted():
     data, _ = png()
     assert _MODULE.image_error(data, "text/html") == "not_image_content_type"
+
+
+def jpeg_with_broken_exif():
+    output = BytesIO()
+    Image.new("RGB", (32, 32), "blue").save(
+        output,
+        format="JPEG",
+        exif=b"Exif\x00\x00II*\x00\x08\x00\x00\x00\x01\x00",
+    )
+    return output.getvalue()
+
+
+def test_decodable_jpeg_with_corrupt_exif_is_accepted_without_warning():
+    data = jpeg_with_broken_exif()
+    # Prove this fixture exercises Pillow's real metadata warning.
+    with pytest.warns(UserWarning, match="Corrupt EXIF data"):
+        with Image.open(BytesIO(data)) as image:
+            image.load()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        assert _MODULE.image_error(data, "image/jpeg") is None
+    assert caught == []
+
+
+def test_truncated_pixels_are_rejected_even_with_corrupt_exif():
+    data = jpeg_with_broken_exif()[:-10]
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        assert _MODULE.image_error(data, "image/jpeg") == "OSError"
+    assert caught == []
+
+
+def test_warning_filter_is_local_and_does_not_hide_other_pillow_warnings(monkeypatch):
+    original_open = Image.open
+
+    def warn_then_open(*args, **kwargs):
+        warnings.warn("unrelated Pillow warning", UserWarning)
+        return original_open(*args, **kwargs)
+
+    monkeypatch.setattr(Image, "open", warn_then_open)
+    with pytest.warns(UserWarning, match="unrelated Pillow warning"):
+        assert _MODULE.image_error(*png()) is None
+    monkeypatch.setattr(Image, "open", original_open)
+    with pytest.warns(UserWarning, match="Corrupt EXIF data"):
+        with Image.open(BytesIO(jpeg_with_broken_exif())) as image:
+            image.load()
