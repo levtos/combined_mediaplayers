@@ -169,7 +169,7 @@ class _CoverCache:
             self._on_ha_stop,
         )
         self._audit_task = self._hass.async_create_background_task(
-            self._async_audit_disk(), "CMP cached image audit"
+            self._async_audit_disk(), "CMP cached image audit", eager_start=False
         )
 
         _LOGGER.debug("Cover cache ready (%d disk entries)", len(self._disk_index))
@@ -389,7 +389,9 @@ def async_prepare_cover_cache(hass: HomeAssistant) -> None:
     data = hass.data.setdefault(DOMAIN, {})
     if "cover_cache_preparation" not in data:
         data["cover_cache_preparation"] = hass.async_create_background_task(
-            _async_prepare_cover_cache(hass), "CMP cover cache preparation"
+            _async_prepare_cover_cache(hass),
+            "CMP cover cache preparation",
+            eager_start=False,
         )
 
 

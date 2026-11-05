@@ -1,5 +1,6 @@
 """HA-independent image checks and the validated cache/fetch fallback chain."""
 
+import asyncio
 from io import BytesIO
 import warnings
 
@@ -66,6 +67,9 @@ async def fetch_validated_image(cache, key, fetchers, executor, is_current, repo
 async def audit_cached_images(index, generations, read, discard, executor, now, ttl):
     """Audit old entries without blocking requests or deleting newer writes."""
     for key, metadata in list(index.items()):
+        # Expired entries need no image read, so explicitly yield even when an
+        # entire old cache is expired instead of monopolizing the event loop.
+        await asyncio.sleep(0)
         generation = generations.get(key, 0)
         if now - metadata.get("last_used", 0) > ttl:
             reason = "expired"

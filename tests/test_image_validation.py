@@ -331,3 +331,31 @@ def test_background_audit_cancels_without_eviction_after_shutdown():
         assert discarded == []
 
     asyncio.run(scenario())
+
+
+def test_fully_expired_cache_yields_to_other_work_and_can_be_cancelled():
+    async def scenario():
+        index = {
+            str(key): {"content_type": "image/png", "last_used": 0}
+            for key in range(1000)
+        }
+        first_discard = asyncio.Event()
+        discarded = []
+
+        async def read(_key):
+            pytest.fail("Expired images must not be read or decoded")
+
+        def discard(key):
+            discarded.append(key)
+            first_discard.set()
+
+        audit = asyncio.create_task(
+            _MODULE.audit_cached_images(index, {}, read, discard, executor, 100, 10)
+        )
+        await first_discard.wait()
+        assert 0 < len(discarded) < len(index)
+        audit.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await audit
+
+    asyncio.run(scenario())
