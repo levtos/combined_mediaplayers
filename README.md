@@ -8,7 +8,7 @@ A Home Assistant custom integration that merges multiple media players into a si
 
 - **Multiple sources** – reorderable `media_player` sources without a fixed form limit
 - **Priority order** – position 1 = highest priority, position N = lowest
-- **Activity detection** – playing/buffering sources beat paused; on/idle never provide media content
+- **Activity detection** – playing/buffering sources beat paused; on/idle can show an optional app placeholder
 - **Matching cover and text** – title and artist follow the shown cover; the main winner retains app name, series/season/episode and position
 - **Full-cover rotation** – alternate simultaneous sources with matching title/artist; optional plain-text details about other sources in the album field
 - **Cover art image entity** – dedicated `image` entity for use in dashboards and automations
@@ -24,7 +24,7 @@ A Home Assistant custom integration that merges multiple media players into a si
 |------|--------|-------------|
 | 1 | `playing`, `buffering` | Actively playing |
 | 2 | `paused` | Paused media |
-| No display | `on`, `idle` | Ready for controls; no cover, title or media attributes |
+| No display | `on`, `idle` | Ready for controls; optional app-name/icon placeholder |
 | — | `off`, `unavailable`, `unknown` | Ignored |
 
 Within the same tier, the source with the lower position (higher priority) wins.
@@ -38,7 +38,7 @@ Within the same tier, the source with the lower position (higher priority) wins.
 | No display winner, at least one source `on` / `idle` | `idle` |
 | All sources off, missing, unavailable or unknown | `off` |
 
-The same pure resolver selects the display winner and control target. All entities share its result, including the optional hold time and priority override below. The first configured slot has the highest priority within a tier. A lower-priority playing source always beats a higher-priority paused source. An idle placeholder never supplies its title or picture.
+The same pure resolver selects the display winner and control target. All entities share its result, including the optional hold time and priority override below. The first configured slot has the highest priority within a tier. A lower-priority playing source always beats a higher-priority paused source. An idle app placeholder is added only in presentation; the resolver still returns no display source.
 
 ## Global options
 
@@ -47,6 +47,7 @@ These controls appear above the source list in the first setup/options step. Exi
 | Option | German label | Default |
 | --- | --- | --- |
 | `rotation_seconds` | Wechselintervall (Sekunden) | 30 seconds; range 5–600 |
+| `show_app_icon_fallback` | App-Symbol als Ersatz-Cover verwenden | On |
 | `show_other_sources` | Weitere Quellen in zweiter Zeile anzeigen | On |
 | `hide_radio_station` | Sendername bei Radio ausblenden | On |
 | `hold_seconds` | Haltezeit (Sekunden) | 5 seconds; range 0–30, 0 disables |
@@ -64,6 +65,22 @@ Each slot pairs a **Source** with an optional **Control via** device (German: **
 Without a display winner, controls use the first on/idle source's slot. If all sources are inactive, there is no control target. Devices reporting `supported_features: 0` gain no invented capabilities; select a suitable control device if needed.
 
 Media browsing keeps its existing delegation order: display winner, selected control target, then any configured source or control with `BROWSE_MEDIA`. That capability remains exposed even when no display source is playing.
+
+## App icon fallback
+
+With `show_app_icon_fallback` enabled (default **true**, including existing entries), the shown source uses this chain: **validated real source cover → local app icon → previous fallback behavior**. The dedicated `image.<name>_cover` follows only the main display winner; its last known good real cover for that same source also beats an icon. Icons do not enter the real-cover cache or affect priority, hold, rotation timing or title deduplication.
+
+For titles, a nonblank source `media_title` always wins, preserving series formatting. Otherwise use that source's nonblank `app_name`. When no source is playing/buffering/paused, the selected on/idle **source** may show its app name and icon, including when the slot has a separate control device. The CMP remains `idle`, with no resolver display source. A home screen with an empty/missing app name shows no placeholder. Disabling the option restores the previous title/cover behavior and disables idle placeholders.
+
+Supply square PNG files yourself; this release includes no app artwork:
+
+- Bundled: `custom_components/combined_media_player/app_icons/<slug>.png`.
+- Optional override: `<HA-Config>/www/combined_media_player/app_icons/<slug>.png`, preferred over the bundled file. An existing invalid override is treated as no icon.
+- Slug: Home Assistant's `homeassistant.util.slugify(app_name)`, e.g. `Netflix` → `netflix`, `Prime Video` → `prime_video`. With no usable app name, use the last segment of `app_id` (`com.netflix.Netflix` → `netflix`). No bundle-ID map is guessed. Only `[a-z0-9_]+` is accepted as a filename stem; escaping paths are rejected.
+
+File stat/read and the existing Pillow verification/pixel decoding run in an executor. Validated results (including invalid-file misses) are cached in memory by path and nanosecond mtime. Icon metadata is refreshed on source/rotation updates and image requests; replacing an icon does not require a new config entry. Proxy hashes include slug/mtime and cover origin so cover/icon switches invalidate HA's proxy.
+
+The player, active-source sensor and redacted diagnostics expose `cover_origin` (`source`, `app_icon`, or `null`) and `app_icon_slug` (only for an icon actually served, otherwise `null`). These describe the shown source's last fetch for its current content, without image URLs, local paths or tokens. Before a fetch, the origin can be `null`.
 
 ## Cover behavior
 

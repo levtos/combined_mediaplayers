@@ -37,6 +37,7 @@ class ActiveSourceSensor(SensorEntity):
         selection = self._runtime.selection
         state = self._runtime.display_state
         return {
+            **self._runtime.cover_attributes,
             # HA reserves friendly_name for this sensor's own translated name.
             "active_source_name": (
                 state.attributes.get("friendly_name") or state.entity_id

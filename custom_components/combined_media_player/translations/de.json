@@ -10,14 +10,16 @@
           "hold_seconds": "Haltezeit (Sekunden)",
           "sources": "Quellen",
           "rotation_seconds": "Wechselintervall (Sekunden)",
-          "show_other_sources": "Weitere Quellen in zweiter Zeile anzeigen"
+          "show_other_sources": "Weitere Quellen in zweiter Zeile anzeigen",
+          "show_app_icon_fallback": "App-Symbol als Ersatz-Cover verwenden"
         },
         "data_description": {
           "hide_radio_station": "Blendet den Sendernamen im Album-Feld aus, wenn die Inhalts-ID ://radio/ enthält. Andere Alben bleiben sichtbar.",
           "hold_seconds": "Hält die bisherige Anzeige bei kurzen Wiedergabelücken für 0–30 Sekunden. Eine höher priorisierte spielende Quelle gewinnt sofort. 0 schaltet die Haltezeit aus.",
           "sources": "Wähle mindestens eine Quelle und ziehe die Einträge in die gewünschte Reihenfolge.",
           "rotation_seconds": "Anzeigedauer je Cover bei mehreren gleichzeitig laufenden Quellen: 5–600 Sekunden, Standard 30. Pro Quelle im nächsten Schritt überschreibbar.",
-          "show_other_sources": "Weitere Rotationsquellen als Text im Albumfeld anzeigen; Musik als Interpret – Titel, Spiele/Videos nur als Titel. Titel und Interpret wechseln mit dem Cover. Die Steuerung bleibt bei der Hauptquelle."
+          "show_other_sources": "Weitere Rotationsquellen als Text im Albumfeld anzeigen; Musik als Interpret – Titel, Spiele/Videos nur als Titel. Titel und Interpret wechseln mit dem Cover. Die Steuerung bleibt bei der Hauptquelle.",
+          "show_app_icon_fallback": "Bei fehlendem Cover das lokale App-Symbol und bei leerem Titel den App-Namen anzeigen. Für die gewählte on/idle-Quelle mit App-Namen einen Platzhalter zeigen; der Zustand bleibt idle."
         }
       },
       "controls": {
@@ -48,14 +50,16 @@
           "hold_seconds": "Haltezeit (Sekunden)",
           "sources": "Quellen",
           "rotation_seconds": "Wechselintervall (Sekunden)",
-          "show_other_sources": "Weitere Quellen in zweiter Zeile anzeigen"
+          "show_other_sources": "Weitere Quellen in zweiter Zeile anzeigen",
+          "show_app_icon_fallback": "App-Symbol als Ersatz-Cover verwenden"
         },
         "data_description": {
           "hide_radio_station": "Blendet den Sendernamen im Album-Feld aus, wenn die Inhalts-ID ://radio/ enthält. Andere Alben bleiben sichtbar.",
           "hold_seconds": "Hält die bisherige Anzeige bei kurzen Wiedergabelücken für 0–30 Sekunden. Eine höher priorisierte spielende Quelle gewinnt sofort. 0 schaltet die Haltezeit aus.",
           "sources": "Wähle mindestens eine Quelle und ziehe die Einträge in die gewünschte Reihenfolge.",
           "rotation_seconds": "Anzeigedauer je Cover bei mehreren gleichzeitig laufenden Quellen: 5–600 Sekunden, Standard 30. Pro Quelle im nächsten Schritt überschreibbar.",
-          "show_other_sources": "Weitere Rotationsquellen als Text im Albumfeld anzeigen; Musik als Interpret – Titel, Spiele/Videos nur als Titel. Titel und Interpret wechseln mit dem Cover. Die Steuerung bleibt bei der Hauptquelle."
+          "show_other_sources": "Weitere Rotationsquellen als Text im Albumfeld anzeigen; Musik als Interpret – Titel, Spiele/Videos nur als Titel. Titel und Interpret wechseln mit dem Cover. Die Steuerung bleibt bei der Hauptquelle.",
+          "show_app_icon_fallback": "Bei fehlendem Cover das lokale App-Symbol und bei leerem Titel den App-Namen anzeigen. Für die gewählte on/idle-Quelle mit App-Namen einen Platzhalter zeigen; der Zustand bleibt idle."
         }
       },
       "controls": {

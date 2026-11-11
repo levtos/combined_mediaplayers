@@ -2,6 +2,8 @@
 
 from collections.abc import Callable
 from datetime import timedelta
+from pathlib import Path
+import asyncio
 import time
 
 from homeassistant.config_entries import ConfigEntry
@@ -12,6 +14,8 @@ from homeassistant.helpers.start import async_at_started
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    CONF_SHOW_APP_ICON_FALLBACK,
+    DEFAULT_SHOW_APP_ICON_FALLBACK,
     CONF_HOLD_SECONDS,
     CONF_ROTATION_SECONDS,
     DEFAULT_HOLD_SECONDS,
@@ -22,6 +26,7 @@ from .const import (
     slot_settings_from_entry,
     tracked_entities,
 )
+from .app_icons import AppIconCache, app_icon_slug, placeholder_state
 from .resolver import Resolution, priority_slots, resolve_with_hold
 from .rotation import (
     Rotation,
@@ -30,12 +35,21 @@ from .rotation import (
     advance_rotation,
     rotation_sources,
     title_switch_after_change,
+    shown_source_state,
 )
 
 
 class EntryRuntime:
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
+        self.show_app_icon_fallback = entry_option(
+            entry, CONF_SHOW_APP_ICON_FALLBACK, DEFAULT_SHOW_APP_ICON_FALLBACK
+        )
+        self._icon_cache = AppIconCache()
+        self._icons = {}
+        self._icon_lock = asyncio.Lock()
+        self._icon_task = None
+        self._cover_origins = {}
         self.slots = slots_from_entry(entry)
         self.slot_settings = slot_settings_from_entry(entry)
         self.rotation = Rotation()
@@ -121,8 +135,107 @@ class EntryRuntime:
                 self.hass, max(0, remaining), self._hold_expired
             )
         self._refresh_rotation(states)
+        if self.show_app_icon_fallback and (
+            self._icon_task is None or self._icon_task.done()
+        ):
+            self._icon_task = self.hass.async_create_task(self.async_prepare_icons())
         for listener in tuple(self._listeners):
             listener()
+
+    @property
+    def main_presentation_state(self):
+        if self.display_state is not None:
+            return self.display_state
+        return placeholder_state(
+            self.selection,
+            priority_slots(self.slots, self.override),
+            {
+                sid: state
+                for sid, _ in self.slots
+                if (state := self.hass.states.get(sid)) is not None
+            },
+            self.show_app_icon_fallback,
+        )
+
+    @property
+    def shown_presentation_state(self):
+        source = self.rotation.shown_source
+        return shown_source_state(
+            source,
+            self.selection.display_source,
+            self.main_presentation_state,
+            {source: self.hass.states.get(source)} if source else {},
+        )
+
+    def icon_for(self, state):
+        slug = app_icon_slug(state.attributes) if state else None
+        return self._icons.get(slug) if self.show_app_icon_fallback else None
+
+    async def async_prepare_icons(self):
+        """Stat/read/decode off-loop; properties only ever read memory."""
+        if not self.show_app_icon_fallback:
+            return
+        async with self._icon_lock:
+            changed = False
+            for state in (self.main_presentation_state, self.shown_presentation_state):
+                slug = app_icon_slug(state.attributes) if state else None
+                if slug is None:
+                    continue
+                try:
+                    icon = await self.hass.async_add_executor_job(
+                        self._icon_cache.load,
+                        slug,
+                        self.hass.config.path("www", DOMAIN, "app_icons"),
+                        Path(__file__).parent / "app_icons",
+                    )
+                except Exception:
+                    icon = None
+                previous = self._icons.get(slug)
+                if previous != icon:
+                    self._icons[slug] = icon
+                    changed = True
+            if changed:
+                for listener in tuple(self._listeners):
+                    listener()
+
+    @staticmethod
+    def _cover_key(state):
+        if state is None:
+            return None
+        return (
+            state.entity_id,
+            *(
+                state.attributes.get(key)
+                for key in ("entity_picture", "media_title", "app_name", "app_id")
+            ),
+        )
+
+    def record_cover(self, state, origin, slug=None):
+        key = self._cover_key(state)
+        value = (key, origin, slug)
+        source = state.entity_id if state else None
+        if self._cover_origins.get(source) != value:
+            self._cover_origins[source] = value
+            for listener in tuple(self._listeners):
+                listener()
+
+    def cover_attributes_for(self, state):
+        """Allowlisted metadata for bytes served for this content snapshot."""
+        record = self._cover_origins.get(state.entity_id if state else None)
+        origin, slug = (
+            record[1:]
+            if record and record[0] == self._cover_key(state)
+            else (None, None)
+        )
+        if origin == "app_icon" and (
+            not self.show_app_icon_fallback or not self._icons.get(slug)
+        ):
+            origin, slug = None, None
+        return {"cover_origin": origin, "app_icon_slug": slug}
+
+    @property
+    def cover_attributes(self):
+        return self.cover_attributes_for(self.shown_presentation_state)
 
     @callback
     def start_rotation(self) -> None:
@@ -248,6 +361,8 @@ class EntryRuntime:
 
     @callback
     def stop(self) -> None:
+        if self._icon_task is not None:
+            self._icon_task.cancel()
         self.stop_rotation()
         for cancel in self._unsubs:
             cancel()

@@ -8,11 +8,13 @@ from .const import (
     CONF_NAME,
     CONF_ROTATION_SECONDS,
     CONF_SHOW_OTHER_SOURCES,
+    CONF_SHOW_APP_ICON_FALLBACK,
     CONF_SLOTS,
     DEFAULT_HIDE_RADIO_STATION,
     DEFAULT_HOLD_SECONDS,
     DEFAULT_ROTATION_SECONDS,
     DEFAULT_SHOW_OTHER_SOURCES,
+    DEFAULT_SHOW_APP_ICON_FALLBACK,
     DOMAIN,
     entry_option,
 )
@@ -103,6 +105,7 @@ async def async_get_config_entry_diagnostics(hass, entry) -> dict:
     ]
     for key, default in (
         (CONF_SHOW_OTHER_SOURCES, DEFAULT_SHOW_OTHER_SOURCES),
+        (CONF_SHOW_APP_ICON_FALLBACK, DEFAULT_SHOW_APP_ICON_FALLBACK),
         (CONF_HIDE_RADIO_STATION, DEFAULT_HIDE_RADIO_STATION),
     ):
         value = entry_option(entry, key, default)
@@ -117,6 +120,7 @@ async def async_get_config_entry_diagnostics(hass, entry) -> dict:
     return {
         "options": options,
         "resolution": {
+            **runtime.cover_attributes,
             "display_source": _entity(selection.display_source),
             "secondary_source": _entity(selection.secondary_source),
             "rotation_sources": [
