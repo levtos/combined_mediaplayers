@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.12.0 (2026-11-11)
+
+- Fall back from validated source cover art to a local app icon, then the existing cover behavior. Keep the dedicated main-cover entity's last good source cover ahead of icons; never persist icons in the real-cover cache.
+- Use the shown source's app name for missing/blank titles. Show app-name/icon placeholders for the selected on/idle source only with a nonblank app name, retaining idle state and all resolver/control/rotation results.
+- Load slug-named PNGs from www overrides before bundled app_icons, validate through the existing Pillow verify/decode path in the executor, and cache in memory by path/mtime. Missing or invalid icons are harmless; no icon artwork is included.
+- Add the default-on show_app_icon_fallback option in the first setup/options step, German/English text, cover_origin/app_icon_slug diagnostics, proxy invalidation and focused regressions. No new dependencies, slot migration or entity identity changes.
+
 ## 1.11.2 (2026-11-05)
 
 - Stop awaiting the shared cover cache during image entity setup. Warm it as a background task and load only index metadata on the request path.

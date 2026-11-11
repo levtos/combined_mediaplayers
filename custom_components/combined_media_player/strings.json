@@ -10,14 +10,16 @@
           "hold_seconds": "Hold time (seconds)",
           "sources": "Sources",
           "rotation_seconds": "Switch interval (seconds)",
-          "show_other_sources": "Show other sources in the second line"
+          "show_other_sources": "Show other sources in the second line",
+          "show_app_icon_fallback": "Use app icon as fallback cover"
         },
         "data_description": {
           "hide_radio_station": "Hide the station name in the album field when the content ID contains ://radio/. Other albums remain visible.",
           "hold_seconds": "Keep the previous display during brief playback gaps for 0–30 seconds. A higher-priority playing source wins immediately. Set 0 to disable.",
           "sources": "Select at least one source and drag the entries into the desired order.",
           "rotation_seconds": "Cover duration with multiple playing sources: 5–600 seconds, default 30. Override per source in the next step.",
-          "show_other_sources": "List other rotation sources as text in the album field: music as Artist – Title, games/videos as Title. Title and artist follow the cover; controls stay with the main source."
+          "show_other_sources": "List other rotation sources as text in the album field: music as Artist – Title, games/videos as Title. Title and artist follow the cover; controls stay with the main source.",
+          "show_app_icon_fallback": "Use a local app icon when cover art is missing and the app name when the title is empty. Show an app placeholder for the selected on/idle source with an app name; its state stays idle."
         }
       },
       "controls": {
@@ -48,14 +50,16 @@
           "hold_seconds": "Hold time (seconds)",
           "sources": "Sources",
           "rotation_seconds": "Switch interval (seconds)",
-          "show_other_sources": "Show other sources in the second line"
+          "show_other_sources": "Show other sources in the second line",
+          "show_app_icon_fallback": "Use app icon as fallback cover"
         },
         "data_description": {
           "hide_radio_station": "Hide the station name in the album field when the content ID contains ://radio/. Other albums remain visible.",
           "hold_seconds": "Keep the previous display during brief playback gaps for 0–30 seconds. A higher-priority playing source wins immediately. Set 0 to disable.",
           "sources": "Select at least one source and drag the entries into the desired order.",
           "rotation_seconds": "Cover duration with multiple playing sources: 5–600 seconds, default 30. Override per source in the next step.",
-          "show_other_sources": "List other rotation sources as text in the album field: music as Artist – Title, games/videos as Title. Title and artist follow the cover; controls stay with the main source."
+          "show_other_sources": "List other rotation sources as text in the album field: music as Artist – Title, games/videos as Title. Title and artist follow the cover; controls stay with the main source.",
+          "show_app_icon_fallback": "Use a local app icon when cover art is missing and the app name when the title is empty. Show an app placeholder for the selected on/idle source with an app name; its state stays idle."
         }
       },
       "controls": {

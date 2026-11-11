@@ -28,8 +28,9 @@ from .const import (
     tracked_entities,
 )
 from .image import async_fetch_source_image
+from .app_icons import presentation_title
 from .resolver import Resolution, is_radio
-from .rotation import media_title_with_series, other_sources_line, shown_source_state
+from .rotation import other_sources_line
 
 
 async def async_setup_entry(
@@ -174,7 +175,15 @@ class CombinedMediaPlayer(MediaPlayerEntity):
     @property
     def media_title(self) -> str | None:
         shown = self._shown_state()
-        return media_title_with_series(shown.attributes) if shown else None
+        return (
+            presentation_title(
+                shown.attributes,
+                self._runtime.show_app_icon_fallback,
+                placeholder=self._resolve().display_source is None,
+            )
+            if shown
+            else None
+        )
 
     @property
     def media_artist(self) -> str | None:
@@ -281,17 +290,20 @@ class CombinedMediaPlayer(MediaPlayerEntity):
     # ── Cover art ─────────────────────────────────────────────────────────────
 
     def _shown_state(self) -> State | None:
-        source = self._runtime.rotation.shown_source
-        return shown_source_state(
-            source,
-            self._active_entity_id(),
-            self._active_state(),
-            {source: self.hass.states.get(source)} if source else {},
-        )
+        return self._runtime.shown_presentation_state
 
     @property
     def media_image_hash(self) -> str | None:
         """Invalidate the proxy on rotation, title, picture or fallback changes."""
+        value = self._image_fingerprint()
+        if value is None:
+            return None
+        return hashlib.sha256(
+            json.dumps([value, self._runtime.cover_attributes]).encode()
+        ).hexdigest()[:32]
+
+    def _image_fingerprint(self) -> str | None:
+        """Content identity used to discard stale fetches, independent of their result."""
         shown, active = self._shown_state(), self._active_state()
         if shown is None and active is None:
             return None
@@ -302,6 +314,8 @@ class CombinedMediaPlayer(MediaPlayerEntity):
                     state.entity_id,
                     state.attributes.get("entity_picture"),
                     state.attributes.get("media_title"),
+                    state.attributes.get("app_name"),
+                    state.attributes.get("app_id"),
                 ]
                 if state
                 else None
@@ -309,13 +323,22 @@ class CombinedMediaPlayer(MediaPlayerEntity):
 
         # Also include the fixed main cover: a missing rotating image falls back
         # to it, and a main title/picture change must invalidate that response.
-        value = json.dumps([fingerprint(shown), fingerprint(active)])
+        icons = [self._runtime.icon_for(state) for state in (shown, active)]
+        value = json.dumps(
+            [
+                fingerprint(shown),
+                fingerprint(active),
+                [icon.fingerprint if icon else None for icon in icons],
+            ]
+        )
         return hashlib.sha256(value.encode()).hexdigest()[:32]
 
     @property
     def media_image_url(self) -> str | None:
         """HA serves the rotating cover through its own proxy."""
         shown = self._shown_state()
+        if self._runtime.cover_attributes["cover_origin"] == "app_icon":
+            return None
         url = shown.attributes.get("entity_picture") if shown else None
         return (
             url
@@ -325,18 +348,33 @@ class CombinedMediaPlayer(MediaPlayerEntity):
 
     async def async_get_media_image(self) -> tuple[bytes | None, str | None]:
         """Fetch the shown cover through validation; fall back to the pure main cover."""
-        fingerprint = self.media_image_hash
+        await self._runtime.async_prepare_icons()
+        fingerprint = self._image_fingerprint()
 
         def is_current():
-            return self.media_image_hash == fingerprint
+            return self._image_fingerprint() == fingerprint
 
         shown = self._shown_state()
         if shown and shown.entity_id != self._active_entity_id():
-            image = await async_fetch_source_image(self.hass, shown, is_current)
+            try:
+                image = (
+                    await async_fetch_source_image(self.hass, shown, is_current)
+                    if self._resolve().display_source is not None
+                    else None
+                )
+            except Exception:
+                image = None
             if not is_current():
                 return None, None
             if image:
+                self._runtime.record_cover(shown, "source")
                 return image
+            if icon := self._runtime.icon_for(shown):
+                self._runtime.record_cover(shown, "app_icon", icon.slug)
+                return icon.data, "image/png"
+            self._runtime.record_cover(shown, None)
+            if self._resolve().display_source is None:
+                return None, None
 
         registry = async_get_entity_registry(self.hass)
         image_id = registry.async_get_entity_id(
@@ -349,6 +387,19 @@ class CombinedMediaPlayer(MediaPlayerEntity):
             else None
         )
         if entity is None:
+            if shown:
+                try:
+                    image = await async_fetch_source_image(self.hass, shown, is_current)
+                except Exception:
+                    image = None
+                if not is_current():
+                    return None, None
+                if image:
+                    self._runtime.record_cover(shown, "source")
+                    return image
+                if icon := self._runtime.icon_for(shown):
+                    self._runtime.record_cover(shown, "app_icon", icon.slug)
+                    return icon.data, "image/png"
             return None, None
         try:
             main = await entity.async_image()
@@ -356,6 +407,13 @@ class CombinedMediaPlayer(MediaPlayerEntity):
             return None, None
         if not main or not is_current():
             return None, None
+        if shown and shown.entity_id != self._active_entity_id():
+            attributes = self._runtime.cover_attributes_for(
+                self._runtime.main_presentation_state
+            )
+            self._runtime.record_cover(
+                shown, attributes["cover_origin"], attributes["app_icon_slug"]
+            )
         return main, getattr(entity, "content_type", None) or "image/jpeg"
 
     def _browse_entity_id(self) -> str | None:
@@ -423,6 +481,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         selection = self._resolve()
         return {
+            **self._runtime.cover_attributes,
             "active_source": selection.display_source,
             "control_target": selection.control_target,
             "override": self._runtime.override,

@@ -524,23 +524,33 @@ class CombinedCoverImage(ImageEntity):
         self._last_image: bytes | None = None
         self._last_source: str | None = None
         self._cached_fingerprint: str | None = None
+        self._last_placeholder = False
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
     def _active_state(self) -> State | None:
-        return self.hass.data[DOMAIN][self._entry.entry_id].display_state
+        return self._runtime.main_presentation_state
+
+    @property
+    def _runtime(self):
+        return self.hass.data[DOMAIN][self._entry.entry_id]
 
     def _image_fingerprint(self) -> str | None:
         active = self._active_state()
         if active is None:
             return None
+        icon = self._runtime.icon_for(active)
         return json.dumps(
             [
                 active.entity_id,
                 active.attributes.get(_FINGERPRINT_ATTR),
                 active.attributes.get("media_title"),
+                active.attributes.get("app_name"),
+                active.attributes.get("app_id"),
+                icon.fingerprint if icon else None,
+                self._runtime.cover_attributes_for(active),
             ]
         )
 
@@ -548,8 +558,10 @@ class CombinedCoverImage(ImageEntity):
         """Invalidate on every winner transition, including loss of its picture."""
         active = self._active_state()
         source = active.entity_id if active else None
-        if source != self._last_source:
+        placeholder = self._runtime.selection.display_source is None
+        if source != self._last_source or placeholder != self._last_placeholder:
             self._last_source = source
+            self._last_placeholder = placeholder
             self._last_image = None
             self._attr_content_type = None
         fingerprint = self._image_fingerprint()
@@ -559,16 +571,24 @@ class CombinedCoverImage(ImageEntity):
 
     async def async_image(self) -> bytes | None:
         """Fetch only the display winner; keep good art only for that source."""
+        await self._runtime.async_prepare_icons()
         self._refresh_image_url()
         active = self._active_state()
         if active is None:
             return None
         fingerprint = self._image_fingerprint()
-        image = await async_fetch_source_image(
-            self.hass,
-            active,
-            lambda: self._image_fingerprint() == fingerprint,
-        )
+        try:
+            image = (
+                None
+                if self._last_placeholder
+                else await async_fetch_source_image(
+                    self.hass,
+                    active,
+                    lambda: self._image_fingerprint() == fingerprint,
+                )
+            )
+        except Exception:
+            image = None
         # A source/title can change while cache, entity or HTTP I/O is awaited.
         # Never publish an in-flight response for the previous winner.
         if self._image_fingerprint() != fingerprint:
@@ -576,6 +596,14 @@ class CombinedCoverImage(ImageEntity):
             return None
         if image is not None:
             self._last_image, self._attr_content_type = image
+        if self._last_image is not None:
+            self._runtime.record_cover(active, "source")
+        elif icon := self._runtime.icon_for(active):
+            self._attr_content_type = "image/png"
+            self._runtime.record_cover(active, "app_icon", icon.slug)
+            return icon.data
+        else:
+            self._runtime.record_cover(active, None)
         return self._last_image
 
     # ------------------------------------------------------------------

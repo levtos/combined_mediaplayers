@@ -15,12 +15,14 @@ from .const import (
     CONF_NAME,
     CONF_ROTATION_SECONDS,
     CONF_SHOW_OTHER_SOURCES,
+    CONF_SHOW_APP_ICON_FALLBACK,
     CONF_SLOTS,
     CONF_SOURCES,
     DEFAULT_HIDE_RADIO_STATION,
     DEFAULT_HOLD_SECONDS,
     DEFAULT_ROTATION_SECONDS,
     DEFAULT_SHOW_OTHER_SOURCES,
+    DEFAULT_SHOW_APP_ICON_FALLBACK,
     DOMAIN,
     entry_option,
     slots_from_entry,
@@ -31,6 +33,9 @@ from .slot_config import make_slots, settings_by_source
 
 def _settings(form: dict) -> dict:
     return {
+        CONF_SHOW_APP_ICON_FALLBACK: form.get(
+            CONF_SHOW_APP_ICON_FALLBACK, DEFAULT_SHOW_APP_ICON_FALLBACK
+        ),
         CONF_ROTATION_SECONDS: form.get(
             CONF_ROTATION_SECONDS, DEFAULT_ROTATION_SECONDS
         ),
@@ -54,6 +59,10 @@ def _source_schema(values: dict) -> vol.Schema:
             vol.Optional(
                 CONF_ROTATION_SECONDS, default=settings[CONF_ROTATION_SECONDS]
             ): _duration_selector(),
+            vol.Optional(
+                CONF_SHOW_APP_ICON_FALLBACK,
+                default=settings[CONF_SHOW_APP_ICON_FALLBACK],
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_SHOW_OTHER_SOURCES, default=settings[CONF_SHOW_OTHER_SOURCES]
             ): selector.BooleanSelector(),
@@ -236,6 +245,7 @@ class CombinedMediaPlayerOptionsFlow(config_entries.OptionsFlow):
                     for key, default in (
                         (CONF_ROTATION_SECONDS, DEFAULT_ROTATION_SECONDS),
                         (CONF_SHOW_OTHER_SOURCES, DEFAULT_SHOW_OTHER_SOURCES),
+                        (CONF_SHOW_APP_ICON_FALLBACK, DEFAULT_SHOW_APP_ICON_FALLBACK),
                         (CONF_HIDE_RADIO_STATION, DEFAULT_HIDE_RADIO_STATION),
                         (CONF_HOLD_SECONDS, DEFAULT_HOLD_SECONDS),
                     )
